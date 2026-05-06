@@ -1,0 +1,227 @@
+{% extends "base.html" %}
+{% block title %} — {{ track.title }}{% endblock %}
+{% block content %}
+<div class="mb-4">
+  <a href="{{ url_for('tracks_index') }}" class="text-muted small"><i class="bi bi-arrow-left"></i> Tracks</a>
+  <div class="d-flex justify-content-between align-items-start mt-1">
+    <div>
+      <h2 class="mb-0">{{ track.title }}</h2>
+      <span class="badge bg-{% if track.status == 'current' %}primary{% elif track.status == 'completed' %}success{% else %}secondary{% endif %} me-2">
+        {{ track.status.title() }}
+      </span>
+      <span class="badge bg-light text-dark">Level {{ track.level }}</span>
+    </div>
+    <span class="fs-4 fw-bold text-primary">{{ track.completion_pct }}%</span>
+  </div>
+  <div class="progress mt-2" style="height:8px;max-width:400px;">
+    <div class="progress-bar" style="width:{{ track.completion_pct }}%"></div>
+  </div>
+</div>
+
+<div class="row g-3">
+  <!-- Controls -->
+  <div class="col-md-4">
+    <div class="card p-3 mb-3">
+      <h6 class="mb-3">Status</h6>
+      {% if track.status == 'library' %}
+        {% if current_count < 3 %}
+          <form method="post" action="{{ url_for('change_track_status', id=track.id) }}" class="mb-2">
+            <input type="hidden" name="status" value="current">
+            <button class="btn btn-primary btn-sm w-100">Set as Current</button>
+          </form>
+        {% else %}
+          <p class="text-muted small">Limit reached (3/3 current).</p>
+        {% endif %}
+      {% elif track.status == 'current' %}
+        <form method="post" action="{{ url_for('complete_track', id=track.id) }}" class="mb-2"
+          onsubmit="return confirm('Mark this track as completed?')">
+          <button class="btn btn-success btn-sm w-100">Mark Complete</button>
+        </form>
+        <form method="post" action="{{ url_for('change_track_status', id=track.id) }}">
+          <input type="hidden" name="status" value="library">
+          <button class="btn btn-outline-secondary btn-sm w-100">Move to Library</button>
+        </form>
+      {% elif track.status == 'completed' %}
+        <p class="text-success small mb-2"><i class="bi bi-check-circle-fill"></i>
+          Completed {{ track.completed_at.strftime('%b %d, %Y') }}
+        </p>
+        <form method="post" action="{{ url_for('level_two', id=track.id) }}">
+          <button class="btn btn-warning btn-sm w-100">
+            <i class="bi bi-arrow-up-circle"></i> Start Level {{ track.level + 1 }}
+          </button>
+        </form>
+      {% endif %}
+    </div>
+
+    <!-- Add checkpoint -->
+    <div class="card p-3 mb-3">
+      <h6 class="mb-3">Add Checkpoint</h6>
+      <form method="post" action="{{ url_for('add_checkpoint', id=track.id) }}">
+        <div class="mb-2">
+          <input type="text" name="title" class="form-control form-control-sm" placeholder="Checkpoint title" required>
+        </div>
+        <div class="mb-2">
+          <textarea name="description" class="form-control form-control-sm" rows="2"
+            placeholder="Description (optional)"></textarea>
+        </div>
+        <div class="mb-3">
+          <label class="form-label small text-muted">Target date</label>
+          <input type="date" name="target_date" class="form-control form-control-sm">
+        </div>
+        <button class="btn btn-outline-primary btn-sm w-100">Add Checkpoint</button>
+      </form>
+    </div>
+
+    <!-- Add goal to this track -->
+    <div class="card p-3">
+      <h6 class="mb-3">Add Goal to Track</h6>
+      <form method="post" action="{{ url_for('create_goal') }}">
+        <input type="hidden" name="track_id" value="{{ track.id }}">
+        <div class="mb-2">
+          <input type="text" name="title" class="form-control form-control-sm" placeholder="Goal title" required>
+        </div>
+        <div class="mb-2">
+          <textarea name="description" class="form-control form-control-sm" rows="2"
+            placeholder="Description (optional)"></textarea>
+        </div>
+        <div class="mb-3">
+          <input type="datetime-local" name="due_at" class="form-control form-control-sm">
+        </div>
+        <button class="btn btn-outline-success btn-sm w-100">Add Goal</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Checkpoints + Goals -->
+  <div class="col-md-8">
+    <div class="card p-3 mb-3">
+      <h6 class="mb-3">Checkpoints ({{ track.checkpoints|selectattr('completed')|list|length }}/{{ track.checkpoints|length }})</h6>
+      {% if track.checkpoints %}
+        {% for cp in track.checkpoints %}
+          <!-- Display row -->
+          <div id="cp-view-{{ cp.id }}" class="d-flex align-items-start p-2 mb-1 rounded {% if cp.completed %}bg-success bg-opacity-10{% else %}bg-light{% endif %}">
+            <form method="post" action="{{ url_for('toggle_checkpoint', track_id=track.id, cp_id=cp.id) }}" class="me-2">
+              <button class="btn btn-sm {% if cp.completed %}btn-success{% else %}btn-outline-secondary{% endif %} py-0 px-1">
+                <i class="bi {% if cp.completed %}bi-check-circle-fill{% else %}bi-circle{% endif %}"></i>
+              </button>
+            </form>
+            <div class="flex-grow-1">
+              <span class="{% if cp.completed %}text-decoration-line-through text-muted{% else %}fw-semibold{% endif %}">
+                {{ cp.title }}
+              </span>
+              {% if cp.description %}
+                <p class="text-muted small mb-0">{{ cp.description }}</p>
+              {% endif %}
+              {% if cp.target_date %}
+                <span class="text-muted small"><i class="bi bi-calendar3 me-1"></i>{{ cp.target_date.strftime('%b %d, %Y') }}</span>
+              {% endif %}
+            </div>
+            <div class="d-flex gap-1 ms-2">
+              <button class="btn btn-sm btn-outline-secondary py-0 px-1" onclick="toggleRow('cp-view-{{ cp.id }}','cp-edit-{{ cp.id }}')">
+                <i class="bi bi-pencil"></i>
+              </button>
+              <form method="post" action="{{ url_for('delete_checkpoint', track_id=track.id, cp_id=cp.id) }}"
+                onsubmit="return confirm('Delete checkpoint?')">
+                <button class="btn btn-sm btn-outline-danger py-0 px-1"><i class="bi bi-trash"></i></button>
+              </form>
+            </div>
+          </div>
+          <!-- Edit row -->
+          <div id="cp-edit-{{ cp.id }}" style="display:none;" class="mb-2 p-2 rounded border">
+            <form method="post" action="{{ url_for('edit_checkpoint', track_id=track.id, cp_id=cp.id) }}">
+              <div class="mb-2">
+                <input type="text" name="title" class="form-control form-control-sm" value="{{ cp.title }}" required>
+              </div>
+              <div class="mb-2">
+                <textarea name="description" class="form-control form-control-sm" rows="2" placeholder="Description">{{ cp.description or '' }}</textarea>
+              </div>
+              <div class="mb-2">
+                <input type="date" name="target_date" class="form-control form-control-sm"
+                  value="{{ cp.target_date.isoformat() if cp.target_date else '' }}">
+              </div>
+              <div class="d-flex gap-2">
+                <button class="btn btn-sm btn-primary">Save</button>
+                <button type="button" class="btn btn-sm btn-outline-secondary"
+                  onclick="toggleRow('cp-view-{{ cp.id }}','cp-edit-{{ cp.id }}')">Cancel</button>
+              </div>
+            </form>
+          </div>
+        {% endfor %}
+      {% else %}
+        <p class="text-muted">No checkpoints yet. Add one to track your progress.</p>
+      {% endif %}
+    </div>
+
+    <!-- Associated goals -->
+    {% if track.goals %}
+    <div class="card p-3">
+      <h6 class="mb-3">Associated Goals</h6>
+      {% for goal in track.goals %}
+        <!-- Display row -->
+        <div id="goal-view-{{ goal.id }}" class="d-flex align-items-center p-2 mb-1 rounded bg-light">
+          <span class="badge bg-{% if goal.status == 'done' %}success{% elif goal.status == 'doing' %}primary{% else %}secondary{% endif %} me-2">
+            {{ goal.status.replace('_', ' ') }}
+          </span>
+          <span class="flex-grow-1 {% if goal.status == 'done' %}text-muted text-decoration-line-through{% endif %}">
+            {{ goal.title }}
+          </span>
+          {% if goal.due_at %}
+            <span class="text-muted small me-2">Due {{ goal.due_at.strftime('%b %d') }}</span>
+          {% endif %}
+          <div class="d-flex gap-1">
+            <button class="btn btn-sm btn-outline-secondary py-0 px-1" onclick="toggleRow('goal-view-{{ goal.id }}','goal-edit-{{ goal.id }}')">
+              <i class="bi bi-pencil"></i>
+            </button>
+            <form method="post" action="{{ url_for('delete_goal', id=goal.id) }}"
+              onsubmit="return confirm('Delete goal?')">
+              <button class="btn btn-sm btn-outline-danger py-0 px-1"><i class="bi bi-trash"></i></button>
+            </form>
+          </div>
+        </div>
+        <!-- Edit row -->
+        <div id="goal-edit-{{ goal.id }}" style="display:none;" class="mb-2 p-2 rounded border">
+          <form method="post" action="{{ url_for('edit_goal', id=goal.id) }}">
+            <div class="mb-2">
+              <input type="text" name="title" class="form-control form-control-sm" value="{{ goal.title }}" required>
+            </div>
+            <div class="mb-2">
+              <textarea name="description" class="form-control form-control-sm" rows="2"
+                placeholder="Description (optional)">{{ goal.description or '' }}</textarea>
+            </div>
+            <div class="mb-2">
+              <label class="form-label small text-muted mb-1">Due date</label>
+              <input type="datetime-local" name="due_at" class="form-control form-control-sm"
+                value="{{ goal.due_at.strftime('%Y-%m-%dT%H:%M') if goal.due_at else '' }}">
+            </div>
+            <div class="mb-2">
+              <label class="form-label small text-muted mb-1">Track</label>
+              <select name="track_id" class="form-select form-select-sm">
+                <option value="">No track</option>
+                {% for t in all_tracks %}
+                  <option value="{{ t.id }}" {% if goal.track_id == t.id %}selected{% endif %}>{{ t.title }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="d-flex gap-2">
+              <button class="btn btn-sm btn-success">Save</button>
+              <button type="button" class="btn btn-sm btn-outline-secondary"
+                onclick="toggleRow('goal-view-{{ goal.id }}','goal-edit-{{ goal.id }}')">Cancel</button>
+            </div>
+          </form>
+        </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<script>
+function toggleRow(viewId, editId) {
+  var v = document.getElementById(viewId);
+  var e = document.getElementById(editId);
+  var showing = e.style.display !== 'none';
+  v.style.display = showing ? '' : 'none';
+  e.style.display = showing ? 'none' : '';
+}
+</script>
+{% endblock %}

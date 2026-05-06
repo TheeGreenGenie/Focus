@@ -1,0 +1,547 @@
+{% extends "base.html" %}
+{% block title %} — Finance{% endblock %}
+
+{% block main_class %}main-flex{% endblock %}
+
+{% block content %}
+
+<!-- ── Alerts ─────────────────────────────────────────────────────── -->
+{% if alerts %}
+  <div style="flex-shrink:0;">
+    {% for alert in alerts %}
+      <div class="alert alert-warning py-1 mb-1 small"><i class="bi bi-exclamation-triangle me-1"></i>{{ alert }}</div>
+    {% endfor %}
+  </div>
+{% endif %}
+
+<!-- ── Net Worth Banner ───────────────────────────────────────────── -->
+<div class="rounded-3 p-3 mb-3" style="flex-shrink:0;background:linear-gradient(135deg,#0f0c29,#302b63,#24243e);">
+  <div class="row g-0 text-center">
+    <div class="col-6 col-md-3 border-end border-white border-opacity-10 pb-2 pb-md-0">
+      <div class="text-white-50 mb-1" style="font-size:.65rem;text-transform:uppercase;letter-spacing:.08em;">Assets</div>
+      <div class="text-success fw-bold fs-5">${{ "%.2f"|format(total_assets) }}</div>
+    </div>
+    <div class="col-6 col-md-3 border-md-end border-white border-opacity-10 pb-2 pb-md-0">
+      <div class="text-white-50 mb-1" style="font-size:.65rem;text-transform:uppercase;letter-spacing:.08em;">Debt</div>
+      <div class="text-danger fw-bold fs-5">-${{ "%.2f"|format(total_debt) }}</div>
+    </div>
+    <div class="col-6 col-md-3 border-end border-white border-opacity-10">
+      <div class="text-white-50 mb-1" style="font-size:.65rem;text-transform:uppercase;letter-spacing:.08em;">Net Worth</div>
+      <div class="fw-bold fs-4 {% if net_worth >= 0 %}text-info{% else %}text-danger{% endif %}">
+        {% if net_worth < 0 %}-{% endif %}${{ "%.2f"|format(net_worth|abs) }}
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="text-white-50 mb-1" style="font-size:.65rem;text-transform:uppercase;letter-spacing:.08em;">End of Month Est.</div>
+      <div class="fw-bold fs-4 {% if projected_net_worth >= 0 %}text-warning{% else %}text-danger{% endif %}">
+        {% if projected_net_worth < 0 %}-{% endif %}${{ "%.2f"|format(projected_net_worth|abs) }}
+      </div>
+      <div class="text-white-50" style="font-size:.6rem;">{{ days_remaining }}d remaining</div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Budget Row ─────────────────────────────────────────────────── -->
+<div class="row g-2 mb-3" style="flex-shrink:0;">
+  <div class="col-6 col-md-3">
+    <div class="card p-2 h-100" style="border-left:3px solid #198754;">
+      <div class="text-muted mb-1" style="font-size:.65rem;text-transform:uppercase;letter-spacing:.06em;">Income</div>
+      <div class="fw-bold text-success fs-6">${{ "%.2f"|format(monthly_income) }}</div>
+      <div class="text-muted" style="font-size:.65rem;">per month</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="card p-2 h-100" style="border-left:3px solid #dc3545;">
+      <div class="text-muted mb-1" style="font-size:.65rem;text-transform:uppercase;letter-spacing:.06em;">Bills</div>
+      <div class="fw-bold text-danger fs-6">${{ "%.2f"|format(bills_total) }}</div>
+      <div class="text-muted" style="font-size:.65rem;">{{ bills|length }} fixed</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="card p-2 h-100" style="border-left:3px solid #ffc107;">
+      <div class="text-muted mb-1" style="font-size:.65rem;text-transform:uppercase;letter-spacing:.06em;">Spent</div>
+      <div class="fw-bold text-warning fs-6">${{ "%.2f"|format(this_total) }}</div>
+      <div class="text-muted" style="font-size:.65rem;">vs ${{ "%.0f"|format(last_total) }} last mo.</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="card p-2 h-100" style="border-left:3px solid {% if remaining >= 0 %}#0d6efd{% else %}#dc3545{% endif %};">
+      <div class="text-muted mb-1" style="font-size:.65rem;text-transform:uppercase;letter-spacing:.06em;">Remaining</div>
+      <div class="fw-bold {% if remaining >= 0 %}text-primary{% else %}text-danger{% endif %} fs-6">
+        {% if remaining < 0 %}-{% endif %}${{ "%.2f"|format(remaining|abs) }}
+      </div>
+      <div class="text-muted" style="font-size:.65rem;">after bills + spending</div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Action Bar ─────────────────────────────────────────────────── -->
+<div class="d-flex gap-2 mb-3 finance-actions" style="flex-shrink:0;">
+  <button class="btn btn-sm btn-success" data-bs-toggle="offcanvas" data-bs-target="#oc-asset">
+    <i class="bi bi-plus-lg me-1"></i>Asset
+  </button>
+  <button class="btn btn-sm btn-danger" data-bs-toggle="offcanvas" data-bs-target="#oc-debt">
+    <i class="bi bi-plus-lg me-1"></i>Debt
+  </button>
+  <button class="btn btn-sm btn-warning text-dark" data-bs-toggle="offcanvas" data-bs-target="#oc-bill">
+    <i class="bi bi-plus-lg me-1"></i>Bill
+  </button>
+  <button class="btn btn-sm btn-primary" data-bs-toggle="offcanvas" data-bs-target="#oc-tx">
+    <i class="bi bi-plus-lg me-1"></i>Transaction
+  </button>
+  <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="offcanvas" data-bs-target="#oc-income">
+    <i class="bi bi-pencil me-1"></i>Income
+  </button>
+  <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="offcanvas" data-bs-target="#oc-import">
+    <i class="bi bi-upload me-1"></i>Import
+  </button>
+  <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="offcanvas" data-bs-target="#oc-savings">
+    <i class="bi bi-journal me-1"></i>Savings
+  </button>
+</div>
+
+<!-- ── Tabs ───────────────────────────────────────────────────────── -->
+<div class="card overflow-hidden" style="flex:1;min-height:0;display:flex;flex-direction:column;">
+  <div class="table-wrap" style="flex-shrink:0;">
+    <ul class="nav nav-tabs px-3 pt-2 flex-nowrap" style="min-width:max-content;">
+      <li class="nav-item">
+        <a class="nav-link active small py-1 text-nowrap" data-bs-toggle="tab" href="#tab-overview">Overview</a>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link small py-1 text-nowrap" data-bs-toggle="tab" href="#tab-assets">
+          Assets <span class="badge bg-success ms-1">{{ assets|length }}</span>
+        </a>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link small py-1 text-nowrap" data-bs-toggle="tab" href="#tab-debts">
+          Debts <span class="badge bg-danger ms-1">{{ debts|length }}</span>
+        </a>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link small py-1 text-nowrap" data-bs-toggle="tab" href="#tab-bills">
+          Bills <span class="badge bg-warning text-dark ms-1">{{ bills|length }}</span>
+        </a>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link small py-1 text-nowrap" data-bs-toggle="tab" href="#tab-tx">
+          Transactions <span class="badge bg-secondary ms-1">{{ transactions|length }}</span>
+        </a>
+      </li>
+    </ul>
+  </div>
+
+  <div class="tab-content" style="flex:1;min-height:0;overflow-y:auto;">
+
+    <!-- Overview tab -->
+    <div class="tab-pane fade show active p-3" id="tab-overview">
+      <div class="row g-3">
+        <div class="col-md-6">
+          <h6 class="text-muted small text-uppercase mb-3" style="letter-spacing:.06em;">This Month by Category</h6>
+          {% if cat_pcts %}
+            {% for cat, pct in cat_pcts.items() %}
+              <div class="d-flex align-items-center mb-2">
+                <span class="small text-muted me-2" style="width:120px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;">{{ cat }}</span>
+                <div class="progress flex-grow-1 me-2" style="height:6px;">
+                  <div class="progress-bar {% if pct > 20 %}bg-danger{% else %}bg-primary{% endif %}" style="width:{{ pct }}%"></div>
+                </div>
+                <span class="small text-muted" style="width:36px;text-align:right;">{{ pct }}%</span>
+              </div>
+            {% endfor %}
+          {% else %}
+            <p class="text-muted small">No transactions this month.</p>
+          {% endif %}
+        </div>
+        <div class="col-md-6">
+          <h6 class="text-muted small text-uppercase mb-3" style="letter-spacing:.06em;">Asset Breakdown</h6>
+          {% if assets %}
+            {% for a in assets %}
+              <div class="d-flex align-items-center mb-2">
+                <span class="small me-2" style="width:120px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;">{{ a.name }}</span>
+                <div class="progress flex-grow-1 me-2" style="height:6px;">
+                  {% set pct = (a.amount / total_assets * 100)|round(1) if total_assets > 0 else 0 %}
+                  <div class="progress-bar bg-success" style="width:{{ pct }}%"></div>
+                </div>
+                <span class="small text-success fw-semibold" style="width:72px;text-align:right;">${{ "%.0f"|format(a.amount) }}</span>
+              </div>
+            {% endfor %}
+          {% else %}
+            <p class="text-muted small">No assets added.</p>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <!-- Assets tab -->
+    <div class="tab-pane fade p-3" id="tab-assets">
+      {% if assets %}
+        <div class="table-wrap">
+          <table class="table table-sm table-hover align-middle mb-0">
+            <thead class="table-light">
+              <tr><th>Name</th><th>Type</th><th>Balance</th><th style="width:80px;"></th></tr>
+            </thead>
+            <tbody>
+            {% for a in assets %}
+              <tr>
+                <td class="fw-semibold">{{ a.name }}</td>
+                <td><span class="badge rounded-pill" style="background:rgba(25,135,84,.12);color:#198754;">{{ a.asset_type }}</span></td>
+                <td class="text-success fw-bold">${{ "%.2f"|format(a.amount) }}</td>
+                <td>
+                  <div class="d-flex gap-1">
+                    <button class="btn btn-sm btn-outline-secondary py-0 px-1" onclick="toggleEdit('ae-{{ a.id }}')">
+                      <i class="bi bi-pencil"></i>
+                    </button>
+                    <form method="post" action="{{ url_for('delete_asset', id=a.id) }}" onsubmit="return confirm('Remove?')">
+                      <button class="btn btn-sm btn-outline-danger py-0 px-1"><i class="bi bi-trash"></i></button>
+                    </form>
+                  </div>
+                </td>
+              </tr>
+              <tr id="ae-{{ a.id }}" style="display:none;background:#f8f9fa;">
+                <td colspan="4" class="py-2 px-3">
+                  <form method="post" action="{{ url_for('edit_asset', id=a.id) }}" class="d-flex flex-wrap gap-2 align-items-center">
+                    <input type="text" name="name" class="form-control form-control-sm" value="{{ a.name }}" style="max-width:160px;" required>
+                    <input type="number" step="0.01" name="amount" class="form-control form-control-sm" value="{{ a.amount }}" style="max-width:110px;" required>
+                    <select name="asset_type" class="form-select form-select-sm" style="max-width:120px;">
+                      {% for t in ['checking','savings','investment','property','other'] %}
+                        <option value="{{ t }}" {% if a.asset_type == t %}selected{% endif %}>{{ t }}</option>
+                      {% endfor %}
+                    </select>
+                    <button class="btn btn-sm btn-success">Save</button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="toggleEdit('ae-{{ a.id }}')">Cancel</button>
+                  </form>
+                </td>
+              </tr>
+            {% endfor %}
+            <tr class="table-success fw-bold">
+              <td colspan="2">Total</td>
+              <td class="text-success">${{ "%.2f"|format(total_assets) }}</td>
+              <td></td>
+            </tr>
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <div class="text-center text-muted py-5">
+          <i class="bi bi-bank fs-1 mb-2 d-block"></i>
+          No assets yet. Click <strong>+ Asset</strong> to add one.
+        </div>
+      {% endif %}
+    </div>
+
+    <!-- Debts tab -->
+    <div class="tab-pane fade p-3" id="tab-debts">
+      {% if debts %}
+        <div class="table-wrap">
+          <table class="table table-sm table-hover align-middle mb-0">
+            <thead class="table-light">
+              <tr><th>Name</th><th>Type</th><th>Owed</th><th style="width:80px;"></th></tr>
+            </thead>
+            <tbody>
+            {% for d in debts %}
+              <tr>
+                <td class="fw-semibold">{{ d.name }}</td>
+                <td><span class="badge rounded-pill" style="background:rgba(220,53,69,.12);color:#dc3545;">{{ d.debt_type.replace('_',' ') }}</span></td>
+                <td class="text-danger fw-bold">-${{ "%.2f"|format(d.amount) }}</td>
+                <td>
+                  <div class="d-flex gap-1">
+                    <button class="btn btn-sm btn-outline-secondary py-0 px-1" onclick="toggleEdit('de-{{ d.id }}')">
+                      <i class="bi bi-pencil"></i>
+                    </button>
+                    <form method="post" action="{{ url_for('delete_debt', id=d.id) }}" onsubmit="return confirm('Remove?')">
+                      <button class="btn btn-sm btn-outline-danger py-0 px-1"><i class="bi bi-trash"></i></button>
+                    </form>
+                  </div>
+                </td>
+              </tr>
+              <tr id="de-{{ d.id }}" style="display:none;background:#f8f9fa;">
+                <td colspan="4" class="py-2 px-3">
+                  <form method="post" action="{{ url_for('edit_debt', id=d.id) }}" class="d-flex flex-wrap gap-2 align-items-center">
+                    <input type="text" name="name" class="form-control form-control-sm" value="{{ d.name }}" style="max-width:160px;" required>
+                    <input type="number" step="0.01" name="amount" class="form-control form-control-sm" value="{{ d.amount }}" style="max-width:110px;" required>
+                    <select name="debt_type" class="form-select form-select-sm" style="max-width:130px;">
+                      {% for t in ['credit_card','loan','mortgage','other'] %}
+                        <option value="{{ t }}" {% if d.debt_type == t %}selected{% endif %}>{{ t.replace('_',' ') }}</option>
+                      {% endfor %}
+                    </select>
+                    <button class="btn btn-sm btn-danger">Save</button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="toggleEdit('de-{{ d.id }}')">Cancel</button>
+                  </form>
+                </td>
+              </tr>
+            {% endfor %}
+            <tr class="table-danger fw-bold">
+              <td colspan="2">Total</td>
+              <td class="text-danger">-${{ "%.2f"|format(total_debt) }}</td>
+              <td></td>
+            </tr>
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <div class="text-center text-muted py-5">
+          <i class="bi bi-credit-card fs-1 mb-2 d-block"></i>
+          No debts added. Click <strong>+ Debt</strong> to add one.
+        </div>
+      {% endif %}
+    </div>
+
+    <!-- Bills tab -->
+    <div class="tab-pane fade p-3" id="tab-bills">
+      {% if bills %}
+        <div class="table-wrap">
+          <table class="table table-sm table-hover align-middle mb-0">
+            <thead class="table-light">
+              <tr><th>Name</th><th>Category</th><th>Due</th><th>Amount</th><th style="width:50px;"></th></tr>
+            </thead>
+            <tbody>
+            {% for b in bills %}
+              <tr>
+                <td class="fw-semibold">{{ b.name }}</td>
+                <td><span class="badge bg-light text-dark border">{{ b.category }}</span></td>
+                <td class="text-muted small">{% if b.due_day %}Day {{ b.due_day }}{% else %}—{% endif %}</td>
+                <td class="text-danger fw-semibold">${{ "%.2f"|format(b.amount) }}</td>
+                <td>
+                  <form method="post" action="{{ url_for('delete_bill', id=b.id) }}" onsubmit="return confirm('Remove?')">
+                    <button class="btn btn-sm btn-outline-danger py-0 px-1"><i class="bi bi-trash"></i></button>
+                  </form>
+                </td>
+              </tr>
+            {% endfor %}
+            <tr class="fw-bold table-warning">
+              <td colspan="3">Total / month</td>
+              <td class="text-danger">${{ "%.2f"|format(bills_total) }}</td>
+              <td></td>
+            </tr>
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <div class="text-center text-muted py-5">
+          <i class="bi bi-receipt fs-1 mb-2 d-block"></i>
+          No bills added. Click <strong>+ Bill</strong> to add one.
+        </div>
+      {% endif %}
+    </div>
+
+    <!-- Transactions tab -->
+    <div class="tab-pane fade p-3" id="tab-tx">
+      {% if transactions %}
+        <div class="table-wrap">
+          <table class="table table-sm table-hover align-middle mb-0">
+            <thead class="table-light">
+              <tr><th>Date</th><th>Merchant</th><th>Category</th><th>Amount</th><th class="d-none d-sm-table-cell">Notes</th><th style="width:50px;"></th></tr>
+            </thead>
+            <tbody>
+            {% for t in transactions %}
+              <tr>
+                <td class="text-muted small text-nowrap">{{ t.transacted_at.strftime('%b %d') }}</td>
+                <td class="fw-semibold">{{ t.merchant_name }}</td>
+                <td><span class="badge rounded-pill bg-light text-dark border" style="font-size:.65rem;">{{ t.category }}</span></td>
+                <td class="fw-semibold text-nowrap">${{ "%.2f"|format(t.amount) }}</td>
+                <td class="text-muted small d-none d-sm-table-cell">{{ t.notes }}</td>
+                <td>
+                  <form method="post" action="{{ url_for('delete_transaction', id=t.id) }}" onsubmit="return confirm('Delete?')">
+                    <button class="btn btn-sm btn-outline-danger py-0 px-1"><i class="bi bi-trash"></i></button>
+                  </form>
+                </td>
+              </tr>
+            {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <div class="text-center text-muted py-5">
+          <i class="bi bi-list-ul fs-1 mb-2 d-block"></i>
+          No transactions yet.
+        </div>
+      {% endif %}
+    </div>
+
+  </div><!-- end tab-content -->
+</div><!-- end card -->
+
+
+<!-- ══ Offcanvas Panels ══════════════════════════════════════════════ -->
+
+<!-- Set Income -->
+<div class="offcanvas offcanvas-end" tabindex="-1" id="oc-income" style="width:320px;">
+  <div class="offcanvas-header">
+    <h6 class="offcanvas-title">Set Monthly Income</h6>
+    <button type="button" class="btn-close" data-bs-dismiss="offcanvas"></button>
+  </div>
+  <div class="offcanvas-body">
+    <form method="post" action="{{ url_for('set_income') }}">
+      <div class="mb-3">
+        <label class="form-label small text-muted">Monthly Income ($)</label>
+        <input type="number" step="0.01" name="monthly_income" class="form-control"
+          value="{{ monthly_income if monthly_income else '' }}" placeholder="e.g. 4500.00" required>
+      </div>
+      <button class="btn btn-success w-100">Save Income</button>
+    </form>
+  </div>
+</div>
+
+<!-- Add Asset -->
+<div class="offcanvas offcanvas-end" tabindex="-1" id="oc-asset" style="width:320px;">
+  <div class="offcanvas-header">
+    <h6 class="offcanvas-title">Add Asset</h6>
+    <button type="button" class="btn-close" data-bs-dismiss="offcanvas"></button>
+  </div>
+  <div class="offcanvas-body">
+    <form method="post" action="{{ url_for('create_asset') }}">
+      <div class="mb-3">
+        <label class="form-label small text-muted">Name</label>
+        <input type="text" name="name" class="form-control" placeholder="e.g. Chase Checking" required>
+      </div>
+      <div class="mb-3">
+        <label class="form-label small text-muted">Current Balance ($)</label>
+        <input type="number" step="0.01" name="amount" class="form-control" placeholder="0.00" required>
+      </div>
+      <div class="mb-4">
+        <label class="form-label small text-muted">Type</label>
+        <select name="asset_type" class="form-select">
+          <option value="checking">Checking</option>
+          <option value="savings">Savings</option>
+          <option value="investment">Investment</option>
+          <option value="property">Property</option>
+          <option value="other">Other</option>
+        </select>
+      </div>
+      <button class="btn btn-success w-100">Add Asset</button>
+    </form>
+  </div>
+</div>
+
+<!-- Add Debt -->
+<div class="offcanvas offcanvas-end" tabindex="-1" id="oc-debt" style="width:320px;">
+  <div class="offcanvas-header">
+    <h6 class="offcanvas-title">Add Debt</h6>
+    <button type="button" class="btn-close" data-bs-dismiss="offcanvas"></button>
+  </div>
+  <div class="offcanvas-body">
+    <form method="post" action="{{ url_for('create_debt') }}">
+      <div class="mb-3">
+        <label class="form-label small text-muted">Name</label>
+        <input type="text" name="name" class="form-control" placeholder="e.g. Visa Card" required>
+      </div>
+      <div class="mb-3">
+        <label class="form-label small text-muted">Amount Owed ($)</label>
+        <input type="number" step="0.01" name="amount" class="form-control" placeholder="0.00" required>
+      </div>
+      <div class="mb-4">
+        <label class="form-label small text-muted">Type</label>
+        <select name="debt_type" class="form-select">
+          <option value="credit_card">Credit Card</option>
+          <option value="loan">Loan</option>
+          <option value="mortgage">Mortgage</option>
+          <option value="other">Other</option>
+        </select>
+      </div>
+      <button class="btn btn-danger w-100">Add Debt</button>
+    </form>
+  </div>
+</div>
+
+<!-- Add Bill -->
+<div class="offcanvas offcanvas-end" tabindex="-1" id="oc-bill" style="width:320px;">
+  <div class="offcanvas-header">
+    <h6 class="offcanvas-title">Add Fixed Bill</h6>
+    <button type="button" class="btn-close" data-bs-dismiss="offcanvas"></button>
+  </div>
+  <div class="offcanvas-body">
+    <form method="post" action="{{ url_for('create_bill') }}">
+      <div class="mb-3">
+        <label class="form-label small text-muted">Bill Name</label>
+        <input type="text" name="name" class="form-control" placeholder="e.g. Rent" required>
+      </div>
+      <div class="mb-3">
+        <label class="form-label small text-muted">Monthly Amount ($)</label>
+        <input type="number" step="0.01" name="amount" class="form-control" placeholder="0.00" required>
+      </div>
+      <div class="mb-3">
+        <label class="form-label small text-muted">Due Day of Month</label>
+        <input type="number" name="due_day" class="form-control" min="1" max="31" placeholder="e.g. 1">
+      </div>
+      <div class="mb-4">
+        <label class="form-label small text-muted">Category</label>
+        <input type="text" name="category" class="form-control" value="Bills">
+      </div>
+      <button class="btn btn-warning w-100 text-dark">Add Bill</button>
+    </form>
+  </div>
+</div>
+
+<!-- Add Transaction -->
+<div class="offcanvas offcanvas-end" tabindex="-1" id="oc-tx" style="width:320px;">
+  <div class="offcanvas-header">
+    <h6 class="offcanvas-title">Add Transaction</h6>
+    <button type="button" class="btn-close" data-bs-dismiss="offcanvas"></button>
+  </div>
+  <div class="offcanvas-body">
+    <form method="post" action="{{ url_for('create_transaction') }}">
+      <div class="mb-3">
+        <label class="form-label small text-muted">Merchant</label>
+        <input type="text" name="merchant_name" class="form-control" placeholder="e.g. Starbucks" required>
+      </div>
+      <div class="mb-3">
+        <label class="form-label small text-muted">Amount ($)</label>
+        <input type="number" step="0.01" name="amount" class="form-control" placeholder="0.00" required>
+      </div>
+      <div class="mb-3">
+        <label class="form-label small text-muted">Category</label>
+        <input type="text" name="category" class="form-control" value="Uncategorized">
+      </div>
+      <div class="mb-3">
+        <label class="form-label small text-muted">Date</label>
+        <input type="date" name="transacted_at" class="form-control" required>
+      </div>
+      <div class="mb-4">
+        <label class="form-label small text-muted">Notes</label>
+        <input type="text" name="notes" class="form-control" placeholder="Optional">
+      </div>
+      <button class="btn btn-primary w-100">Add Transaction</button>
+    </form>
+  </div>
+</div>
+
+<!-- Import CSV -->
+<div class="offcanvas offcanvas-end" tabindex="-1" id="oc-import" style="width:320px;">
+  <div class="offcanvas-header">
+    <h6 class="offcanvas-title">Import CSV</h6>
+    <button type="button" class="btn-close" data-bs-dismiss="offcanvas"></button>
+  </div>
+  <div class="offcanvas-body">
+    <p class="text-muted small">Required columns: <code>merchant_name, amount, category, transacted_at, notes</code></p>
+    <form method="post" action="{{ url_for('import_transactions') }}" enctype="multipart/form-data">
+      <div class="mb-4">
+        <input type="file" name="csv_file" class="form-control" accept=".csv" required>
+      </div>
+      <button class="btn btn-outline-primary w-100">Import</button>
+    </form>
+  </div>
+</div>
+
+<!-- Savings Notes -->
+<div class="offcanvas offcanvas-end" tabindex="-1" id="oc-savings" style="width:320px;">
+  <div class="offcanvas-header">
+    <h6 class="offcanvas-title">Savings Notes</h6>
+    <button type="button" class="btn-close" data-bs-dismiss="offcanvas"></button>
+  </div>
+  <div class="offcanvas-body">
+    <form method="post" action="{{ url_for('save_savings_note') }}">
+      <div class="mb-4">
+        <textarea name="savings_text" class="form-control" rows="10"
+          placeholder="Goals, targets, milestones...">{{ savings_text }}</textarea>
+      </div>
+      <button class="btn btn-outline-success w-100">Save Notes</button>
+    </form>
+  </div>
+</div>
+
+<script>
+function toggleEdit(id) {
+  var row = document.getElementById(id);
+  row.style.display = row.style.display === 'none' ? '' : 'none';
+}
+</script>
+{% endblock %}

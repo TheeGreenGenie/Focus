@@ -1,0 +1,263 @@
+{% extends "base.html" %}
+{% block title %} — Calendar{% endblock %}
+
+{% block main_class %}main-flex{% endblock %}
+
+{% block page_style %}
+<style>
+/* Tighter calendar so most of it fits above the fold */
+#cal-scroll          { scroll-behavior: smooth; }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Top bar -->
+<div class="d-flex justify-content-between align-items-center mb-1 flex-wrap gap-2" style="flex-shrink:0;">
+  <h5 class="mb-0">Calendar</h5>
+  <div class="d-flex gap-2 align-items-center flex-wrap">
+    <a href="{{ url_for('calendar_index', day=prev_day) }}" class="btn btn-outline-secondary btn-sm px-3">
+      <i class="bi bi-chevron-left"></i>
+    </a>
+    <span class="text-muted small fw-semibold text-nowrap">
+      {{ days[0].strftime('%a, %b %d') }} – {{ days[1].strftime('%a, %b %d, %Y') }}
+    </span>
+    <a href="{{ url_for('calendar_index', day=next_day) }}" class="btn btn-outline-secondary btn-sm px-3">
+      <i class="bi bi-chevron-right"></i>
+    </a>
+    <a href="{{ url_for('calendar_index') }}" class="btn btn-outline-primary btn-sm">Today</a>
+  </div>
+</div>
+
+<!-- New block form -->
+<div class="card p-2 mb-1 cal-add-form" style="flex-shrink:0;">
+  <form method="post" action="{{ url_for('create_block') }}" class="row g-2 align-items-end">
+    <div class="col-12 col-sm-6 col-md-3">
+      <input type="text" name="title" class="form-control form-control-sm" placeholder="Block title" required>
+    </div>
+    <div class="col-12 col-sm-6 col-md-3">
+      <input type="datetime-local" name="starts_at" class="form-control form-control-sm" required>
+    </div>
+    <div class="col-12 col-sm-6 col-md-3">
+      <input type="datetime-local" name="ends_at" class="form-control form-control-sm" required>
+    </div>
+    <div class="col-12 col-sm-6 col-md-2">
+      <input type="text" name="allowed_apps" class="form-control form-control-sm" placeholder="Allowed apps">
+    </div>
+    <div class="col-12 col-md-1">
+      <button class="btn btn-primary btn-sm w-100">Add</button>
+    </div>
+  </form>
+</div>
+
+<!-- Calendar card — margins let the page background breathe around the card -->
+<div class="card overflow-hidden cal-card d-none d-md-flex"
+     style="flex:1;min-height:0;display:flex;flex-direction:column;margin:2rem 6rem 3rem;">
+
+  <!-- Sticky day headers -->
+  <div class="d-flex" style="flex-shrink:0;border-bottom:1px solid rgba(0,0,0,0.1);">
+    <div style="width:44px;min-width:44px;flex-shrink:0;border-right:1px solid rgba(0,0,0,0.08);"></div>
+    {% for day in days %}
+    <div class="flex-grow-1 text-center py-2"
+         style="{% if not loop.last %}border-right:1px solid rgba(0,0,0,0.06);{% endif %}
+                {% if day.isoformat() == today_day %}background:rgba(13,110,253,0.04);{% endif %}">
+      <div class="text-muted" style="font-size:0.7rem;text-transform:uppercase;letter-spacing:.05em;">
+        {{ day.strftime('%A') }}
+      </div>
+      <div class="fw-bold {% if day.isoformat() == today_day %}text-primary{% endif %}" style="font-size:1.1rem;line-height:1.2;">
+        {{ day.strftime('%d') }}
+        {% if day.isoformat() == today_day %}
+          <span class="badge bg-primary" style="font-size:0.55rem;vertical-align:middle;">Today</span>
+        {% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <!-- Scrollable grid -->
+  <div id="cal-scroll" style="flex:1;min-height:0;overflow-y:auto;display:flex;">
+    <!-- Time gutter -->
+    <div style="width:44px;min-width:44px;flex-shrink:0;position:relative;
+                height:{{ total_height }}px;border-right:1px solid rgba(0,0,0,0.08);">
+      {% for h in hours %}
+        <div style="position:absolute;top:{{ h * px_per_hour }}px;right:6px;
+                    font-size:0.62rem;color:rgba(0,0,0,0.3);line-height:1;
+                    transform:translateY(-50%);">
+          {% if h == 0 %}12am
+          {% elif h < 12 %}{{ h }}am
+          {% elif h == 12 %}12pm
+          {% else %}{{ h - 12 }}pm
+          {% endif %}
+        </div>
+      {% endfor %}
+    </div>
+    <!-- Day columns -->
+    {% for day in days %}
+    <div class="flex-grow-1" style="position:relative;height:{{ total_height }}px;min-width:0;
+         {% if not loop.last %}border-right:1px solid rgba(0,0,0,0.06);{% endif %}
+         {% if day.isoformat() == today_day %}background:rgba(13,110,253,0.015);{% endif %}">
+      {% for h in hours %}
+        <div style="position:absolute;left:0;right:0;top:{{ h * px_per_hour }}px;
+                    border-top:1px solid rgba(0,0,0,{% if h % 3 == 0 %}0.1{% else %}0.045{% endif %});
+                    pointer-events:none;"></div>
+        <div style="position:absolute;left:0;right:0;top:{{ h * px_per_hour + px_per_hour // 2 }}px;
+                    border-top:1px dashed rgba(0,0,0,0.03);pointer-events:none;"></div>
+      {% endfor %}
+      {% if day.isoformat() == today_day %}
+        <div id="now-line" style="position:absolute;left:0;right:0;z-index:2;pointer-events:none;">
+          <div style="height:2px;background:rgba(220,53,69,0.7);position:relative;">
+            <div style="width:8px;height:8px;background:#dc3545;border-radius:50%;
+                        position:absolute;left:-4px;top:-3px;"></div>
+          </div>
+        </div>
+      {% endif %}
+      {% for item in blocks_by_day[day] %}
+        {% set b = item.block %}
+        <a href="{{ url_for('block_detail', id=b.id) }}" class="text-decoration-none"
+           style="position:absolute;
+                  left:3px;right:3px;
+                  top:{{ item.top }}px;
+                  height:{{ item.height }}px;
+                  background:{% if b.score_color == 'success' %}rgba(25,135,84,0.15)
+                             {% elif b.score_color == 'warning' %}rgba(255,193,7,0.2)
+                             {% elif b.score_color == 'danger' %}rgba(220,53,69,0.13)
+                             {% else %}rgba(13,110,253,0.1){% endif %};
+                  border-left:3px solid
+                             {% if b.score_color == 'success' %}#198754
+                             {% elif b.score_color == 'warning' %}#e6a700
+                             {% elif b.score_color == 'danger' %}#dc3545
+                             {% else %}#0d6efd{% endif %};
+                  border-radius:0 4px 4px 0;
+                  padding:3px 6px;
+                  overflow:hidden;
+                  z-index:1;
+                  transition:filter .15s;">
+          <div class="fw-semibold text-dark" style="font-size:0.72rem;line-height:1.3;
+               white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+            {{ b.title }}
+          </div>
+          {% if item.height > 30 %}
+          <div class="text-muted" style="font-size:0.62rem;white-space:nowrap;">
+            {{ b.starts_at.strftime('%H:%M') }}–{{ b.ends_at.strftime('%H:%M') }}
+            {% if b.adherence_score is not none %}&nbsp;·&nbsp;{{ b.adherence_score }}%{% endif %}
+          </div>
+          {% endif %}
+        </a>
+      {% endfor %}
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+<!-- ── Mobile calendar: single-day view ─────────────────────────────── -->
+<div class="d-md-none">
+  {% for day in days %}
+  <div class="card overflow-hidden mb-3" style="height:62vh;min-height:300px;display:flex;flex-direction:column;">
+    <!-- Day header -->
+    <div class="d-flex align-items-center px-3 py-2 border-bottom"
+         style="flex-shrink:0;{% if day.isoformat() == today_day %}background:rgba(13,110,253,0.05);{% endif %}">
+      <div class="flex-grow-1">
+        <span class="text-muted small text-uppercase" style="letter-spacing:.05em;">{{ day.strftime('%A') }}</span>
+        <span class="fw-bold ms-2 {% if day.isoformat() == today_day %}text-primary{% endif %}">
+          {{ day.strftime('%b %d') }}
+        </span>
+        {% if day.isoformat() == today_day %}
+          <span class="badge bg-primary ms-1" style="font-size:.6rem;">Today</span>
+        {% endif %}
+      </div>
+      <span class="text-muted small">{{ blocks_by_day[day]|length }} block{{ blocks_by_day[day]|length != 1 and 's' or '' }}</span>
+    </div>
+
+    <!-- Scrollable time grid -->
+    <div id="cal-scroll-mob-{{ loop.index }}" style="flex:1;min-height:0;overflow-y:auto;display:flex;">
+      <!-- Time gutter -->
+      <div style="width:44px;min-width:44px;flex-shrink:0;position:relative;
+                  height:{{ total_height }}px;border-right:1px solid rgba(0,0,0,0.08);">
+        {% for h in hours %}
+          <div style="position:absolute;top:{{ h * px_per_hour }}px;right:4px;
+                      font-size:0.58rem;color:rgba(0,0,0,0.3);line-height:1;
+                      transform:translateY(-50%);">
+            {% if h == 0 %}12a
+            {% elif h < 12 %}{{ h }}a
+            {% elif h == 12 %}12p
+            {% else %}{{ h - 12 }}p
+            {% endif %}
+          </div>
+        {% endfor %}
+      </div>
+      <!-- Day column -->
+      <div style="flex:1;position:relative;height:{{ total_height }}px;min-width:0;
+           {% if day.isoformat() == today_day %}background:rgba(13,110,253,0.015);{% endif %}">
+        {% for h in hours %}
+          <div style="position:absolute;left:0;right:0;top:{{ h * px_per_hour }}px;
+                      border-top:1px solid rgba(0,0,0,{% if h % 3 == 0 %}0.1{% else %}0.04{% endif %});
+                      pointer-events:none;"></div>
+        {% endfor %}
+        {% if day.isoformat() == today_day %}
+          <div id="now-line-mob" style="position:absolute;left:0;right:0;z-index:2;pointer-events:none;">
+            <div style="height:2px;background:rgba(220,53,69,0.7);position:relative;">
+              <div style="width:8px;height:8px;background:#dc3545;border-radius:50%;
+                          position:absolute;left:-4px;top:-3px;"></div>
+            </div>
+          </div>
+        {% endif %}
+        {% for item in blocks_by_day[day] %}
+          {% set b = item.block %}
+          <a href="{{ url_for('block_detail', id=b.id) }}" class="text-decoration-none"
+             style="position:absolute;
+                    left:3px;right:3px;
+                    top:{{ item.top }}px;
+                    height:{{ item.height }}px;
+                    background:{% if b.score_color == 'success' %}rgba(25,135,84,0.15)
+                               {% elif b.score_color == 'warning' %}rgba(255,193,7,0.2)
+                               {% elif b.score_color == 'danger' %}rgba(220,53,69,0.13)
+                               {% else %}rgba(13,110,253,0.1){% endif %};
+                    border-left:3px solid
+                               {% if b.score_color == 'success' %}#198754
+                               {% elif b.score_color == 'warning' %}#e6a700
+                               {% elif b.score_color == 'danger' %}#dc3545
+                               {% else %}#0d6efd{% endif %};
+                    border-radius:0 4px 4px 0;
+                    padding:3px 6px;overflow:hidden;z-index:1;">
+            <div class="fw-semibold text-dark" style="font-size:0.72rem;line-height:1.3;
+                 white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+              {{ b.title }}
+            </div>
+            {% if item.height > 28 %}
+            <div class="text-muted" style="font-size:0.6rem;white-space:nowrap;">
+              {{ b.starts_at.strftime('%H:%M') }}–{{ b.ends_at.strftime('%H:%M') }}
+            </div>
+            {% endif %}
+          </a>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<script>
+(function() {
+  var pxPerHour = {{ px_per_hour }};
+  var now = new Date();
+  var topPx = (now.getHours() * 60 + now.getMinutes()) * pxPerHour / 60;
+
+  // Desktop now-line
+  var line = document.getElementById("now-line");
+  if (line) line.style.top = topPx + "px";
+
+  // Desktop scroll
+  var scroller = document.getElementById("cal-scroll");
+  if (scroller) scroller.scrollTop = Math.max(0, topPx - scroller.clientHeight / 3);
+
+  // Mobile now-line
+  var lineMob = document.getElementById("now-line-mob");
+  if (lineMob) lineMob.style.top = topPx + "px";
+
+  // Mobile scrollers
+  for (var i = 1; i <= 2; i++) {
+    var s = document.getElementById("cal-scroll-mob-" + i);
+    if (s) s.scrollTop = Math.max(0, topPx - s.clientHeight / 3);
+  }
+})();
+</script>
+{% endblock %}

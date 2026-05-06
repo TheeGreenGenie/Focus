@@ -1,0 +1,259 @@
+{% extends "base.html" %}
+{% block title %} — Kanban{% endblock %}
+
+{% block page_style %}
+<style>
+/* Goal description dropdown */
+.goal-details summary {
+  list-style: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: .25rem;
+}
+.goal-details summary::-webkit-details-marker { display: none; }
+.goal-chevron {
+  font-size: .6rem;
+  color: #6c757d;
+  transition: transform .15s;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+.goal-details[open] .goal-chevron { transform: rotate(90deg); }
+.goal-desc {
+  font-size: .75rem;
+  color: #6c757d;
+  white-space: pre-wrap;
+  margin-top: .35rem;
+  padding-left: .5rem;
+  border-left: 2px solid rgba(0,0,0,.1);
+  line-height: 1.4;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+  <h2 class="mb-0">Kanban Board</h2>
+  <div class="d-flex gap-2 align-items-center">
+    <span class="text-muted small">Doing: {{ doing_count }}/3</span>
+    <form method="post" action="{{ url_for('bonus_task') }}">
+      <button class="btn btn-sm btn-outline-warning"
+        {% if doing_count >= 3 %}disabled{% endif %}>
+        <i class="bi bi-plus-circle"></i> Bonus Task
+      </button>
+    </form>
+  </div>
+</div>
+
+<!-- Add goal form -->
+<div class="card p-3 mb-4">
+  <h6 class="mb-3">New Goal</h6>
+  <form method="post" action="{{ url_for('create_goal') }}" class="row g-2">
+    <div class="col-12 col-sm-5 col-md-4">
+      <input type="text" name="title" class="form-control form-control-sm" placeholder="Goal title" required>
+    </div>
+    <div class="col-12 col-sm-4 col-md-3">
+      <select name="track_id" class="form-select form-select-sm">
+        <option value="">No track</option>
+        {% for t in all_tracks %}
+          <option value="{{ t.id }}">{{ t.title }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-12 col-sm-4 col-md-3">
+      <input type="datetime-local" name="due_at" class="form-control form-control-sm">
+    </div>
+    <div class="col-12 col-md-2">
+      <button class="btn btn-primary btn-sm w-100">Add to Doing Next</button>
+    </div>
+    <div class="col-12">
+      <textarea name="description" class="form-control form-control-sm" rows="2"
+        placeholder="Description (optional)"></textarea>
+    </div>
+  </form>
+</div>
+
+<!-- Kanban columns -->
+<div class="kanban-scroll row g-3">
+
+  <!-- Doing Next -->
+  <div class="kanban-col-wrap col-md-4">
+    <div class="card p-3 kanban-col">
+      <h6 class="mb-3 text-muted">
+        <i class="bi bi-hourglass me-1"></i> Doing Next
+        <span class="badge bg-secondary ms-1">{{ doing_next|length }}</span>
+      </h6>
+      {% for goal in doing_next %}
+        <div class="card p-2 mb-2 border-0 bg-light">
+          <!-- Title + description toggle -->
+          {% if goal.description %}
+          <details class="goal-details mb-1">
+            <summary>
+              <span class="fw-semibold small">{{ goal.title }}</span>
+              <i class="bi bi-chevron-right goal-chevron"></i>
+            </summary>
+            <p class="goal-desc mb-0">{{ goal.description }}</p>
+          </details>
+          {% else %}
+          <span class="fw-semibold small d-block mb-1">{{ goal.title }}</span>
+          {% endif %}
+          {% if goal.track %}
+            <div class="text-muted" style="font-size:.7rem;">{{ goal.track.title }}</div>
+          {% endif %}
+          {% if goal.due_at %}
+            <div class="text-muted" style="font-size:.7rem;">
+              <i class="bi bi-calendar3"></i> {{ goal.due_at.strftime('%b %d') }}
+            </div>
+          {% endif %}
+          <div class="d-flex gap-1 mt-2">
+            <form method="post" action="{{ url_for('move_goal', id=goal.id) }}">
+              <input type="hidden" name="direction" value="forward">
+              <button class="btn btn-sm btn-outline-primary py-0"
+                {% if doing_count >= 3 %}disabled title="Doing is full"{% endif %}>
+                <i class="bi bi-arrow-right"></i>
+              </button>
+            </form>
+            <button class="btn btn-sm btn-outline-secondary py-0"
+              onclick="toggleGoalEdit('ge-{{ goal.id }}')">
+              <i class="bi bi-pencil"></i>
+            </button>
+            <form method="post" action="{{ url_for('delete_goal', id=goal.id) }}"
+              onsubmit="return confirm('Delete?')">
+              <button class="btn btn-sm btn-outline-danger py-0"><i class="bi bi-trash"></i></button>
+            </form>
+          </div>
+          <!-- Inline edit -->
+          <div id="ge-{{ goal.id }}" style="display:none;" class="mt-2 pt-2 border-top">
+            <form method="post" action="{{ url_for('edit_goal', id=goal.id) }}">
+              <input type="text" name="title" class="form-control form-control-sm mb-1"
+                value="{{ goal.title }}" required>
+              <textarea name="description" class="form-control form-control-sm mb-1"
+                rows="2" placeholder="Description">{{ goal.description or '' }}</textarea>
+              <div class="d-flex gap-1">
+                <button class="btn btn-sm btn-success py-0">Save</button>
+                <button type="button" class="btn btn-sm btn-outline-secondary py-0"
+                  onclick="toggleGoalEdit('ge-{{ goal.id }}')">Cancel</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      {% else %}
+        <p class="text-muted small">Nothing queued.</p>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- Doing -->
+  <div class="kanban-col-wrap col-md-4">
+    <div class="card p-3 kanban-col border-primary">
+      <h6 class="mb-3 text-primary">
+        <i class="bi bi-lightning me-1"></i> Doing
+        <span class="badge bg-primary ms-1">{{ doing_count }}/3</span>
+      </h6>
+      {% for goal in doing %}
+        <div class="card p-2 mb-2 border-primary border-opacity-25">
+          {% if goal.description %}
+          <details class="goal-details mb-1">
+            <summary>
+              <span class="fw-semibold small">{{ goal.title }}</span>
+              <i class="bi bi-chevron-right goal-chevron"></i>
+            </summary>
+            <p class="goal-desc mb-0">{{ goal.description }}</p>
+          </details>
+          {% else %}
+          <span class="fw-semibold small d-block mb-1">{{ goal.title }}</span>
+          {% endif %}
+          {% if goal.track %}
+            <div class="text-muted" style="font-size:.7rem;">{{ goal.track.title }}</div>
+          {% endif %}
+          {% if goal.due_at %}
+            <div class="text-muted" style="font-size:.7rem;">
+              <i class="bi bi-calendar3"></i> {{ goal.due_at.strftime('%b %d') }}
+            </div>
+          {% endif %}
+          <div class="d-flex gap-1 mt-2">
+            <form method="post" action="{{ url_for('move_goal', id=goal.id) }}">
+              <input type="hidden" name="direction" value="back">
+              <button class="btn btn-sm btn-outline-secondary py-0"><i class="bi bi-arrow-left"></i></button>
+            </form>
+            <form method="post" action="{{ url_for('move_goal', id=goal.id) }}">
+              <input type="hidden" name="direction" value="forward">
+              <button class="btn btn-sm btn-outline-success py-0">
+                <i class="bi bi-arrow-right"></i> Done
+              </button>
+            </form>
+            <button class="btn btn-sm btn-outline-secondary py-0"
+              onclick="toggleGoalEdit('ge-{{ goal.id }}')">
+              <i class="bi bi-pencil"></i>
+            </button>
+            <form method="post" action="{{ url_for('delete_goal', id=goal.id) }}"
+              onsubmit="return confirm('Delete?')">
+              <button class="btn btn-sm btn-outline-danger py-0"><i class="bi bi-trash"></i></button>
+            </form>
+          </div>
+          <!-- Inline edit -->
+          <div id="ge-{{ goal.id }}" style="display:none;" class="mt-2 pt-2 border-top">
+            <form method="post" action="{{ url_for('edit_goal', id=goal.id) }}">
+              <input type="text" name="title" class="form-control form-control-sm mb-1"
+                value="{{ goal.title }}" required>
+              <textarea name="description" class="form-control form-control-sm mb-1"
+                rows="2" placeholder="Description">{{ goal.description or '' }}</textarea>
+              <div class="d-flex gap-1">
+                <button class="btn btn-sm btn-success py-0">Save</button>
+                <button type="button" class="btn btn-sm btn-outline-secondary py-0"
+                  onclick="toggleGoalEdit('ge-{{ goal.id }}')">Cancel</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      {% else %}
+        <p class="text-muted small">Nothing in progress.</p>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- Done -->
+  <div class="kanban-col-wrap col-md-4">
+    <div class="card p-3 kanban-col">
+      <h6 class="mb-3 text-success">
+        <i class="bi bi-check-circle me-1"></i> Done
+        <span class="text-muted small">(last 10)</span>
+      </h6>
+      {% for goal in done %}
+        <div class="card p-2 mb-2 border-0 bg-success bg-opacity-10">
+          {% if goal.description %}
+          <details class="goal-details">
+            <summary>
+              <span class="small text-muted text-decoration-line-through">{{ goal.title }}</span>
+              <i class="bi bi-chevron-right goal-chevron"></i>
+            </summary>
+            <p class="goal-desc mb-0">{{ goal.description }}</p>
+          </details>
+          {% else %}
+          <span class="small text-muted text-decoration-line-through">{{ goal.title }}</span>
+          {% endif %}
+          <div class="d-flex justify-content-end mt-1">
+            <form method="post" action="{{ url_for('move_goal', id=goal.id) }}">
+              <input type="hidden" name="direction" value="back">
+              <button class="btn btn-sm btn-outline-secondary py-0 px-1" title="Move back">
+                <i class="bi bi-arrow-left"></i>
+              </button>
+            </form>
+          </div>
+        </div>
+      {% else %}
+        <p class="text-muted small">Nothing done yet.</p>
+      {% endfor %}
+    </div>
+  </div>
+
+</div><!-- /.kanban-scroll -->
+
+<script>
+function toggleGoalEdit(id) {
+  var el = document.getElementById(id);
+  el.style.display = el.style.display === 'none' ? '' : 'none';
+}
+</script>
+{% endblock %}

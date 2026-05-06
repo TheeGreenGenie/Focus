@@ -1,0 +1,397 @@
+/* ═══════════════════════════════════════════════════════════════════
+   focus.css — Mobile-first stylesheet for the Focus app
+   Principles: mobile-first, flexbox layout, fluid grids,
+   touch-friendly targets (≥ 44px), readable type at all sizes.
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* ── Custom properties ─────────────────────────────────────────────── */
+:root {
+  --sidebar-w: 220px;
+  --topbar-h: 54px;
+  --sidebar-bg: #1a1a2e;
+  --sidebar-active: #16213e;
+  --sidebar-text: #ccc;
+  --radius-card: 12px;
+  --shadow-card: 0 1px 4px rgba(0,0,0,.08);
+  --gap-page: 1rem;
+}
+
+/* ── Reset / base ──────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; }
+
+body {
+  background: #f8f9fa;
+  overflow-x: hidden;
+  -webkit-text-size-adjust: 100%;   /* prevent iOS font-size bump */
+}
+
+/* ── Typography scale ──────────────────────────────────────────────── */
+@media (max-width: 575.98px) {
+  h2 { font-size: 1.35rem; }
+  h5 { font-size: 1rem; }
+}
+
+/* ── Card ──────────────────────────────────────────────────────────── */
+.card {
+  border: none;
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+}
+
+/* ── Misc helpers ──────────────────────────────────────────────────── */
+.adherence-bar { height: 8px; border-radius: 4px; }
+.stress-badge  { font-size: .75rem; }
+.kanban-col    { min-height: 160px; }
+
+/* ── Mobile top-bar ────────────────────────────────────────────────── */
+.mobile-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 1040;
+  background: var(--sidebar-bg);
+  height: var(--topbar-h);
+  display: flex;
+  align-items: center;
+  padding: 0 .875rem;
+  gap: .75rem;
+  box-shadow: 0 2px 8px rgba(0,0,0,.30);
+}
+
+.mobile-topbar .brand-text {
+  color: #fff;
+  font-size: 1.2rem;
+  font-weight: 700;
+  flex: 1;
+  letter-spacing: -.01em;
+}
+
+.hamburger-btn {
+  background: none;
+  border: 1px solid rgba(255,255,255,.25);
+  color: #fff;
+  border-radius: 8px;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.3rem;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background .15s;
+}
+
+.hamburger-btn:hover {
+  background: rgba(255,255,255,.1);
+}
+
+/* ── Sidebar (shared styles) ───────────────────────────────────────── */
+.sidebar {
+  background: var(--sidebar-bg);
+  width: var(--sidebar-w);
+  min-width: var(--sidebar-w);
+  overflow-y: auto;
+  flex-shrink: 0;
+}
+
+.sidebar .brand {
+  color: #fff;
+  font-size: 1.4rem;
+  font-weight: 700;
+  padding: 1.2rem 1rem;
+  letter-spacing: -.01em;
+}
+
+.sidebar .nav-link {
+  color: var(--sidebar-text);
+  padding: .55rem 1rem;
+  border-radius: 6px;
+  transition: background .15s, color .15s;
+  font-size: .9rem;
+}
+
+.sidebar .nav-link:hover,
+.sidebar .nav-link.active {
+  background: var(--sidebar-active);
+  color: #fff;
+}
+
+/* ── Offcanvas nav (mobile drawer) ─────────────────────────────────── */
+.offcanvas-nav .nav-link {
+  color: var(--sidebar-text);
+  padding: .65rem 1rem;
+  border-radius: 6px;
+  font-size: .95rem;
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  transition: background .15s, color .15s;
+}
+
+.offcanvas-nav .nav-link:hover,
+.offcanvas-nav .nav-link.active {
+  background: var(--sidebar-active);
+  color: #fff;
+}
+
+.offcanvas-nav .nav-link-sub {
+  font-size: .85rem;
+  padding-left: 2rem;
+}
+
+/* ── App shell ─────────────────────────────────────────────────────── */
+.app-shell {
+  display: flex;
+  min-height: 100vh;
+}
+
+/* ── Main content area ─────────────────────────────────────────────── */
+#main-content {
+  flex: 1;
+  min-width: 0;
+  padding: 1.25rem 1.5rem;
+}
+
+/* scroll variant (default pages) */
+#main-content.main-scroll {
+  overflow-y: auto;
+}
+
+/* flex-column variant (calendar, finance) */
+#main-content.main-flex {
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  padding: .75rem 1.25rem;
+}
+
+/* ── Calendar-specific sizing ──────────────────────────────────────── */
+/* The add-block form and top-bar should be compact */
+.cal-add-form .form-control-sm,
+.cal-add-form .btn-sm { font-size: .8rem; }
+
+/* Give the calendar card a generous gap from surrounding elements */
+.cal-card {
+  margin-top: .25rem;
+  /* subtle inner breathing room */
+  padding: 0;
+}
+
+/* Desktop: keep the calendar card from being too cramped — let it
+   breathe by shrinking the top/bottom padding of the main-flex area */
+@media (min-width: 768px) {
+  #main-content.main-flex {
+    padding: .6rem 1.25rem .75rem;
+    gap: .4rem;          /* space between top-bar, form card, and cal card */
+    /* gap only works on flex containers */
+  }
+
+  /* Space between flex children in main-flex */
+  #main-content.main-flex > * + * {
+    margin-top: .4rem;
+  }
+  /* Override for the cal card itself — give it a bit more top breathing */
+  #main-content.main-flex .cal-card {
+    margin-top: .5rem;
+  }
+}
+
+/* ── Stats grid (dashboard / progress) ─────────────────────────────── */
+/* Default: 2 columns on small, expands via Bootstrap col-* classes */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: .75rem;
+}
+
+@media (min-width: 768px) {
+  .stats-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+/* ── Kanban horizontal scroll (mobile) ─────────────────────────────── */
+.kanban-scroll {
+  display: flex;
+  gap: .75rem;
+}
+
+/* ── Table wrapper ─────────────────────────────────────────────────── */
+.table-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   DESKTOP  ≥ 768px
+   ══════════════════════════════════════════════════════════════════════ */
+@media (min-width: 768px) {
+  body {
+    height: 100vh;
+    overflow: hidden;
+  }
+
+  .app-shell {
+    height: 100vh;
+    overflow: hidden;
+  }
+
+  #main-content {
+    height: 100vh;
+  }
+
+  /* Hide mobile-only elements */
+  .mobile-topbar { display: none !important; }
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   MOBILE  < 768px
+   ══════════════════════════════════════════════════════════════════════ */
+@media (max-width: 767.98px) {
+  /* Natural page flow on mobile */
+  body { height: auto; }
+
+  .app-shell {
+    flex-direction: column;
+    height: auto;
+    min-height: 100vh;
+  }
+
+  /* Sidebar hidden; nav is in the offcanvas drawer */
+  .sidebar { display: none !important; }
+
+  /* Main content: remove fixed height, show overflow */
+  #main-content {
+    height: auto !important;
+    overflow: visible !important;
+    padding: .875rem;
+  }
+
+  /* Flex-column pages (calendar, finance) fall back to block flow */
+  #main-content.main-flex {
+    display: block;
+    padding: .875rem;
+  }
+
+  /* Touch-friendly button sizes */
+  .btn {
+    min-height: 40px;
+  }
+
+  .btn-sm {
+    min-height: 36px;
+    padding: .35rem .75rem;
+  }
+
+  /* Icon-only small buttons still clickable */
+  .btn-sm.py-0,
+  .btn.py-0 {
+    min-height: 34px;
+    min-width: 34px;
+    padding: .25rem .4rem;
+  }
+
+  /* Full-width offcanvas panels on mobile */
+  .offcanvas.offcanvas-end {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  /* ── Dashboard stats: 2×2 grid ─── */
+  .stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  /* ── Finance action bar: wrap ─── */
+  .finance-actions {
+    flex-wrap: wrap !important;
+    gap: .4rem !important;
+  }
+
+  .finance-actions .btn {
+    flex: 1 1 auto;
+    min-width: calc(50% - .4rem);
+    font-size: .8rem;
+  }
+
+  /* ── Tables: horizontal scroll ─── */
+  .table-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    border-radius: var(--radius-card);
+  }
+
+  /* ── Kanban: horizontal scroll ─── */
+  .kanban-scroll {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scroll-snap-type: x mandatory;
+    margin: 0 -.875rem;
+    padding: 0 .875rem .75rem;
+  }
+
+  .kanban-scroll .kanban-col-wrap {
+    min-width: min(300px, 82vw);
+    flex-shrink: 0;
+    scroll-snap-align: start;
+  }
+
+  /* ── Calendar: show 1 day on xs ─── */
+  .cal-day-2,
+  .cal-hdr-2 {
+    display: none !important;
+  }
+
+  /* ── Calendar form: stack fields ─── */
+  .cal-add-form .row.g-2 {
+    display: flex;
+    flex-direction: column;
+    gap: .5rem;
+  }
+
+  .cal-add-form .row.g-2 > [class*="col-"] {
+    width: 100%;
+    max-width: 100%;
+    flex: none;
+  }
+
+  /* ── Calendar card height on mobile ─── */
+  .cal-card {
+    height: 62vh;
+    min-height: 300px;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ── Journal gate card: full width ─── */
+  .journal-gate-card {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  /* ── Form max-width reset ─── */
+  .card[style*="max-width:700px"],
+  .card[style*="max-width: 700px"] {
+    max-width: 100% !important;
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   TABLET  768px – 991px
+   ══════════════════════════════════════════════════════════════════════ */
+@media (min-width: 768px) and (max-width: 991.98px) {
+  :root { --sidebar-w: 180px; }
+
+  .sidebar .brand      { font-size: 1.2rem; }
+  .sidebar .nav-link   { font-size: .83rem; padding: .45rem .75rem; }
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   TOUCH DEVICES — force mobile layout regardless of viewport width.
+   Handles landscape phones (e.g. iPhone 14 Pro Max landscape = 932px)
+   and "Request Desktop Site" mode. Pointer: coarse = no fine mouse.
+   ══════════════════════════════════════════════════════════════════════ */
+@media (hover: none) and (pointer: coarse) {
+  .sidebar        { display: none !important; }
+  .mobile-topbar  { display: flex !important; }
+}

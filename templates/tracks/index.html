@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+{% block title %} — Tracks{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+  <h2 class="mb-0">Tracks &amp; Goals</h2>
+  <span class="badge bg-primary fs-6">{{ current_count }}/3 Current</span>
+</div>
+
+<div class="row g-3">
+  <!-- Create track + goal -->
+  <div class="col-12 col-md-4">
+    <div class="card p-3 mb-3">
+      <h6 class="mb-3">New Track</h6>
+      <form method="post" action="{{ url_for('create_track') }}">
+        <div class="mb-2">
+          <input type="text" name="title" class="form-control form-control-sm" placeholder="Track title" required>
+        </div>
+        <button class="btn btn-primary btn-sm w-100">Create Track</button>
+      </form>
+    </div>
+
+    <div class="card p-3">
+      <h6 class="mb-3">New Goal</h6>
+      <form method="post" action="{{ url_for('create_goal') }}">
+        <div class="mb-2">
+          <input type="text" name="title" class="form-control form-control-sm" placeholder="Goal title" required>
+        </div>
+        <div class="mb-2">
+          <select name="track_id" class="form-select form-select-sm">
+            <option value="">No track</option>
+            {% for t in all_tracks %}
+              <option value="{{ t.id }}">{{ t.title }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="mb-3">
+          <input type="datetime-local" name="due_at" class="form-control form-control-sm">
+        </div>
+        <button class="btn btn-outline-primary btn-sm w-100">Add to Kanban</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Track lists -->
+  <div class="col-12 col-md-8">
+    <!-- Current -->
+    <div class="card p-3 mb-3 border-primary">
+      <h6 class="mb-3 text-primary">Current ({{ current_count }}/3)</h6>
+      {% if current %}
+        {% for track in current %}
+          <div class="d-flex align-items-center p-2 mb-2 rounded bg-light">
+            <div class="flex-grow-1" style="min-width:0;">
+              <a href="{{ url_for('track_detail', id=track.id) }}" class="fw-semibold text-decoration-none text-dark">
+                {{ track.title }}
+              </a>
+              <span class="text-muted small ms-2">Level {{ track.level }}</span>
+              <div class="progress mt-1" style="height:5px;">
+                <div class="progress-bar" style="width:{{ track.completion_pct }}%"></div>
+              </div>
+            </div>
+            <span class="ms-3 text-muted small flex-shrink-0">{{ track.completion_pct }}%</span>
+          </div>
+        {% endfor %}
+      {% else %}
+        <p class="text-muted small mb-0">No current tracks. Promote one from your library.</p>
+      {% endif %}
+    </div>
+
+    <!-- Library -->
+    <div class="card p-3 mb-3">
+      <h6 class="mb-3">Library</h6>
+      {% if library %}
+        {% for track in library %}
+          <div class="d-flex align-items-center p-2 mb-1 rounded bg-light">
+            <a href="{{ url_for('track_detail', id=track.id) }}"
+              class="flex-grow-1 fw-semibold text-decoration-none text-dark" style="min-width:0;">
+              {{ track.title }} <span class="text-muted small">Level {{ track.level }}</span>
+            </a>
+            {% if current_count < 3 %}
+              <form method="post" action="{{ url_for('change_track_status', id=track.id) }}" class="ms-2 flex-shrink-0">
+                <input type="hidden" name="status" value="current">
+                <button class="btn btn-sm btn-outline-primary py-0">Set Current</button>
+              </form>
+            {% else %}
+              <span class="text-muted small ms-2 flex-shrink-0">Limit reached</span>
+            {% endif %}
+          </div>
+        {% endfor %}
+      {% else %}
+        <p class="text-muted small mb-0">No tracks in library.</p>
+      {% endif %}
+    </div>
+
+    <!-- Completed -->
+    <div class="card p-3">
+      <h6 class="mb-3">Completed</h6>
+      {% if completed %}
+        {% for track in completed %}
+          <div class="d-flex align-items-center p-2 mb-1 rounded bg-light">
+            <a href="{{ url_for('track_detail', id=track.id) }}"
+              class="flex-grow-1 text-decoration-none text-muted" style="min-width:0;">
+              <i class="bi bi-check-circle-fill text-success me-2"></i>
+              {{ track.title }}
+              <span class="small ms-2">{{ track.completed_at.strftime('%b %d, %Y') }}</span>
+            </a>
+          </div>
+        {% endfor %}
+      {% else %}
+        <p class="text-muted small mb-0">No completed tracks yet.</p>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

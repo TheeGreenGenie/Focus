@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+{% block title %} — Dashboard{% endblock %}
+{% block content %}
+<h2 class="mb-4">Dashboard <small class="text-muted fs-6">{{ today.strftime('%A, %B %d') }}</small></h2>
+
+<!-- Stats: 2-col on mobile, 4-col on md+ via stats-grid -->
+<div class="stats-grid mb-4">
+  <div class="card p-3 text-center">
+    <div class="fs-1 fw-bold text-success">{{ streak }}</div>
+    <div class="text-muted small">Gym Streak</div>
+  </div>
+  <div class="card p-3 text-center">
+    <div class="fs-1 fw-bold text-primary">{{ current_tracks|length }}</div>
+    <div class="text-muted small">Active Tracks</div>
+  </div>
+  <div class="card p-3 text-center">
+    <div class="fs-1 fw-bold text-warning">{{ today_blocks|length }}</div>
+    <div class="text-muted small">Blocks Today</div>
+  </div>
+  <div class="card p-3 text-center">
+    <div class="fs-1 fw-bold text-info">{{ total_goals_done }}</div>
+    <div class="text-muted small">Goals Done</div>
+  </div>
+</div>
+
+<div class="row g-3">
+  <!-- Today's blocks -->
+  <div class="col-12 col-md-6">
+    <div class="card p-3">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <h5 class="mb-0">Today's Blocks</h5>
+        <a href="{{ url_for('calendar_index') }}" class="btn btn-sm btn-outline-primary">View Calendar</a>
+      </div>
+      {% if today_blocks %}
+        {% for block in today_blocks %}
+          <a href="{{ url_for('block_detail', id=block.id) }}" class="text-decoration-none">
+            <div class="d-flex align-items-center p-2 mb-2 rounded bg-light">
+              <span class="badge bg-{{ block.score_color }} me-2">
+                {% if block.adherence_score is not none %}{{ block.adherence_score }}%{% else %}—{% endif %}
+              </span>
+              <div>
+                <div class="fw-semibold text-dark">{{ block.title }}</div>
+                <div class="text-muted small">{{ block.starts_at.strftime('%H:%M') }} – {{ block.ends_at.strftime('%H:%M') }}</div>
+              </div>
+            </div>
+          </a>
+        {% endfor %}
+      {% else %}
+        <p class="text-muted mb-0">No blocks scheduled today.</p>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Current tracks -->
+  <div class="col-12 col-md-6">
+    <div class="card p-3">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <h5 class="mb-0">Current Tracks</h5>
+        <a href="{{ url_for('tracks_index') }}" class="btn btn-sm btn-outline-primary">View Tracks</a>
+      </div>
+      {% if current_tracks %}
+        {% for track in current_tracks %}
+          <a href="{{ url_for('track_detail', id=track.id) }}" class="text-decoration-none">
+            <div class="mb-3">
+              <div class="d-flex justify-content-between text-dark">
+                <span class="fw-semibold">{{ track.title }}</span>
+                <span class="text-muted small">{{ track.completion_pct }}%</span>
+              </div>
+              <div class="progress mt-1" style="height:6px;">
+                <div class="progress-bar" style="width:{{ track.completion_pct }}%"></div>
+              </div>
+            </div>
+          </a>
+        {% endfor %}
+      {% else %}
+        <p class="text-muted mb-0">No active tracks.</p>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Last journal entry -->
+  {% if last_entry %}
+  <div class="col-12">
+    <div class="card p-3">
+      <div class="d-flex justify-content-between align-items-center mb-2">
+        <h5 class="mb-0">Last Journal Entry</h5>
+        <a href="{{ url_for('journal_index') }}" class="btn btn-sm btn-outline-secondary">Open Journal</a>
+      </div>
+      <p class="text-muted small mb-1">{{ last_entry.created_at.strftime('%B %d, %Y at %H:%M') }}
+        {% if last_entry.stress_level %}
+          <span class="badge bg-secondary stress-badge ms-2">Stress: {{ last_entry.stress_level }}/10</span>
+        {% endif %}
+      </p>
+      <p class="mb-0" style="white-space:pre-wrap;">{{ last_entry.body[:300] }}{% if last_entry.body|length > 300 %}…{% endif %}</p>
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

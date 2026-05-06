@@ -1,0 +1,261 @@
+{% extends "base.html" %}
+{% block title %} — Journal{% endblock %}
+
+{% block page_style %}
+<style>
+/* Calendar grid */
+.cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 3px;
+  text-align: center;
+}
+.cal-dow {
+  font-size: .68rem;
+  font-weight: 600;
+  color: #6c757d;
+  padding-bottom: 4px;
+}
+.cal-day {
+  font-size: .83rem;
+  border-radius: 6px;
+  padding: 5px 2px;
+  text-decoration: none;
+  color: #212529;
+  display: block;
+  transition: background .1s;
+}
+.cal-day:hover { background: rgba(13,110,253,.08); color: #0d6efd; }
+.cal-day.has-entry {
+  background: rgba(13,110,253,.11);
+  color: #0d6efd;
+  font-weight: 600;
+}
+.cal-day.selected {
+  background: #0d6efd;
+  color: #fff !important;
+  font-weight: 700;
+}
+.cal-day.today-unmarked { font-weight: 700; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+  <h2 class="mb-0">Mental Health Journal</h2>
+  <a href="{{ url_for('journal_index') }}"
+     onclick="fetch('',{method:'POST',body:new URLSearchParams({password:'__logout__'})})"
+     class="btn btn-sm btn-outline-secondary">
+    <i class="bi bi-lock"></i> Lock
+  </a>
+</div>
+
+<div class="row g-3">
+  <!-- ── Left panel: new entry + search ─────────────────────────── -->
+  <div class="col-md-5">
+    <div class="card p-3 mb-3">
+      <h6 class="mb-3">New Entry</h6>
+      <div class="mb-2">
+        <p class="text-muted small mb-1">Prompts — click to insert:</p>
+        {% for stem in stems %}
+          <button type="button" class="btn btn-outline-secondary btn-sm mb-1"
+            onclick="document.getElementById('entry-body').value += '{{ stem }} '">
+            {{ stem }}
+          </button>
+        {% endfor %}
+      </div>
+      <form method="post" action="{{ url_for('journal_index') }}">
+        <div class="mb-2">
+          <textarea name="body" id="entry-body" class="form-control" rows="6"
+            placeholder="Write here..." required></textarea>
+        </div>
+        <div class="mb-3">
+          <label class="form-label small text-muted">
+            Stress level: <span id="stress-val">5</span>/10
+          </label>
+          <input type="range" name="stress_level" class="form-range" min="1" max="10" value="5"
+            oninput="document.getElementById('stress-val').textContent=this.value">
+        </div>
+        <button class="btn btn-primary btn-sm">Save Entry</button>
+      </form>
+    </div>
+
+    <!-- Search & Filter -->
+    <div class="card p-3">
+      <h6 class="mb-3">Search &amp; Filter</h6>
+      <form method="get">
+        <div class="mb-2">
+          <input type="text" name="q" class="form-control form-control-sm"
+            placeholder="Search entries..." value="{{ q }}">
+        </div>
+        <div class="mb-2">
+          <label class="form-label small text-muted">Browse by date</label>
+          <input type="date" name="date" class="form-control form-control-sm"
+            value="{{ filter_date }}"
+            onchange="this.form.submit()">
+        </div>
+        <button class="btn btn-secondary btn-sm w-100">Search</button>
+        {% if q or filter_date or request.args.get('month') %}
+          <a href="{{ url_for('journal_index') }}" class="btn btn-link btn-sm w-100 mt-1">
+            Clear all filters
+          </a>
+        {% endif %}
+      </form>
+    </div>
+  </div>
+
+  <!-- ── Right panel: calendar view OR entry feed ───────────────── -->
+  <div class="col-md-7">
+
+    {% if cal_data %}
+    <!-- ── Calendar month view ── -->
+    <div class="card p-3 mb-3">
+      <!-- Month navigation -->
+      <div class="d-flex align-items-center justify-content-between mb-3">
+        <a href="?month={{ cal_data.prev_month }}{% if q %}&q={{ q }}{% endif %}"
+           class="btn btn-sm btn-outline-secondary px-3">
+          <i class="bi bi-chevron-left"></i>
+        </a>
+        <div class="text-center">
+          <div class="fw-bold">{{ cal_data.display }}</div>
+          <div class="text-muted" style="font-size:.7rem;">
+            {{ cal_data.entry_dates|length }} entr{{ cal_data.entry_dates|length != 1 and 'ies' or 'y' }} this month
+          </div>
+        </div>
+        <a href="?month={{ cal_data.next_month }}{% if q %}&q={{ q }}{% endif %}"
+           class="btn btn-sm btn-outline-secondary px-3">
+          <i class="bi bi-chevron-right"></i>
+        </a>
+      </div>
+
+      <!-- Day-of-week headers -->
+      <div class="cal-grid mb-1">
+        {% for dow in ['Mo','Tu','We','Th','Fr','Sa','Su'] %}
+          <div class="cal-dow">{{ dow }}</div>
+        {% endfor %}
+      </div>
+
+      <!-- Day cells -->
+      <div class="cal-grid">
+        <!-- Offset empty cells -->
+        {% for _ in range(cal_data.first_weekday) %}
+          <div></div>
+        {% endfor %}
+        <!-- Days -->
+        {% for d, day_iso in cal_data.days_list %}
+          <a href="?date={{ day_iso }}{% if q %}&q={{ q }}{% endif %}"
+             class="cal-day
+               {% if day_iso == filter_date %}selected
+               {% elif day_iso in cal_data.entry_dates %}has-entry
+               {% endif %}">
+            {{ d }}
+          </a>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- Entries for selected day -->
+    {% if filter_date %}
+      {% if entries %}
+        <p class="text-muted small mb-2">
+          {{ entries|length }} entr{{ entries|length != 1 and 'ies' or 'y' }} on
+          <strong>{{ filter_date }}</strong>
+        </p>
+        {% for entry in entries %}
+          <div class="card p-3 mb-3">
+            <div class="d-flex justify-content-between align-items-start mb-2 flex-wrap gap-1">
+              <div>
+                <span class="text-muted small">
+                  {{ entry.created_at.strftime('%B %d, %Y at %H:%M') }}
+                </span>
+                {% if entry.updated_at and entry.updated_at != entry.created_at %}
+                  <span class="text-muted small ms-2">(edited)</span>
+                {% endif %}
+              </div>
+              <div class="d-flex gap-2 align-items-center">
+                {% if entry.stress_level %}
+                  <span class="badge bg-secondary stress-badge">
+                    Stress {{ entry.stress_level }}/10
+                  </span>
+                {% endif %}
+                <a href="{{ url_for('edit_entry', id=entry.id) }}"
+                   class="btn btn-sm btn-outline-secondary py-0">
+                  <i class="bi bi-pencil"></i>
+                </a>
+                <form method="post" action="{{ url_for('delete_entry', id=entry.id) }}"
+                  onsubmit="return confirm('Delete this entry?')">
+                  <button class="btn btn-sm btn-outline-danger py-0">
+                    <i class="bi bi-trash"></i>
+                  </button>
+                </form>
+              </div>
+            </div>
+            <p class="mb-0" style="white-space:pre-wrap;">{{ entry.body }}</p>
+          </div>
+        {% endfor %}
+      {% else %}
+        <div class="card p-4 text-center text-muted">
+          <i class="bi bi-journal fs-1 mb-2 d-block"></i>
+          <p class="mb-1">No entries on <strong>{{ filter_date }}</strong>.</p>
+          <p class="small mb-0">
+            Highlighted days above have entries — click one to view them.
+          </p>
+        </div>
+      {% endif %}
+    {% else %}
+      <!-- Month selected, no specific day yet -->
+      <div class="card p-3 text-center text-muted">
+        <i class="bi bi-calendar3 fs-2 mb-2 d-block"></i>
+        <p class="small mb-0">
+          Click a day to read entries.
+          Days with entries are highlighted in blue.
+        </p>
+      </div>
+    {% endif %}
+
+    {% else %}
+    <!-- ── Normal entry feed (no date filter active) ── -->
+    {% if entries %}
+      {% for entry in entries %}
+        <div class="card p-3 mb-3">
+          <div class="d-flex justify-content-between align-items-start mb-2 flex-wrap gap-1">
+            <div>
+              <span class="text-muted small">
+                {{ entry.created_at.strftime('%B %d, %Y at %H:%M') }}
+              </span>
+              {% if entry.updated_at and entry.updated_at != entry.created_at %}
+                <span class="text-muted small ms-2">(edited)</span>
+              {% endif %}
+            </div>
+            <div class="d-flex gap-2 align-items-center">
+              {% if entry.stress_level %}
+                <span class="badge bg-secondary stress-badge">
+                  Stress {{ entry.stress_level }}/10
+                </span>
+              {% endif %}
+              <a href="{{ url_for('edit_entry', id=entry.id) }}"
+                 class="btn btn-sm btn-outline-secondary py-0">
+                <i class="bi bi-pencil"></i>
+              </a>
+              <form method="post" action="{{ url_for('delete_entry', id=entry.id) }}"
+                onsubmit="return confirm('Delete this entry?')">
+                <button class="btn btn-sm btn-outline-danger py-0">
+                  <i class="bi bi-trash"></i>
+                </button>
+              </form>
+            </div>
+          </div>
+          <p class="mb-0" style="white-space:pre-wrap;">{{ entry.body }}</p>
+        </div>
+      {% endfor %}
+    {% else %}
+      <div class="card p-4 text-center text-muted">
+        <i class="bi bi-journal fs-1 mb-2 d-block"></i>
+        <p>No entries found.</p>
+      </div>
+    {% endif %}
+    {% endif %}
+
+  </div><!-- /.col-md-7 -->
+</div>
+{% endblock %}
