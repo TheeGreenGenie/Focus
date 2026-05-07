@@ -785,7 +785,7 @@ def track_detail(id):
     track = Track.query.get_or_404(id)
     current_count = Track.query.filter_by(status="current").count()
     all_tracks = Track.query.order_by(Track.title).all()
-    return render_template("tracks/track.html", track=track, current_count=current_count, all_tracks=all_tracks)
+    return render_template("tracks/track.html", track=track, current_count=current_count, all_tracks=all_tracks, today=date.today())
 
 
 @app.route("/tracks/<id>/status", methods=["POST"])
@@ -878,6 +878,43 @@ def delete_checkpoint(track_id, cp_id):
     db.session.delete(cp)
     db.session.commit()
     flash("Checkpoint deleted.", "info")
+    return redirect(url_for("track_detail", id=track_id))
+
+
+@app.route("/tracks/<track_id>/checkpoints/<cp_id>/schedule", methods=["POST"])
+def schedule_checkpoint(track_id, cp_id):
+    cp = Checkpoint.query.get_or_404(cp_id)
+    recurrence = request.form.get("recurrence_type", "none")
+    allowed_apps = request.form.get("allowed_apps", "")
+    start_time_str = request.form["start_time"]
+    end_time_str = request.form["end_time"]
+
+    if recurrence == "none":
+        date_str = request.form["block_date"]
+        starts_at = datetime.fromisoformat(f"{date_str}T{start_time_str}")
+        ends_at = datetime.fromisoformat(f"{date_str}T{end_time_str}")
+        block = CalendarBlock(title=cp.title, starts_at=starts_at, ends_at=ends_at, allowed_apps=allowed_apps)
+        db.session.add(block)
+        db.session.commit()
+        flash(f"'{cp.title}' added to calendar.", "success")
+    else:
+        days_of_week = ""
+        day_of_month = None
+        if recurrence == "weekly":
+            selected = request.form.getlist("days_of_week")
+            days_of_week = ",".join(selected)
+        elif recurrence == "daily":
+            days_of_week = "0,1,2,3,4,5,6"
+        elif recurrence == "monthly":
+            day_of_month = int(request.form.get("day_of_month", 1))
+        r = RecurringBlock(
+            title=cp.title, start_time=start_time_str, end_time=end_time_str,
+            allowed_apps=allowed_apps, recurrence_type=recurrence,
+            days_of_week=days_of_week, day_of_month=day_of_month
+        )
+        db.session.add(r)
+        db.session.commit()
+        flash(f"'{cp.title}' added as recurring calendar block.", "success")
     return redirect(url_for("track_detail", id=track_id))
 
 
@@ -992,6 +1029,66 @@ def delete_goal(id):
     db.session.commit()
     flash("Goal deleted.", "info")
     return redirect(request.referrer or url_for("kanban_index"))
+
+
+@app.route("/goals/<id>/schedule", methods=["POST"])
+def schedule_goal(id):
+    goal = Goal.query.get_or_404(id)
+    recurrence = request.form.get("recurrence_type", "none")
+    allowed_apps = request.form.get("allowed_apps", "")
+    start_time_str = request.form["start_time"]
+    end_time_str = request.form["end_time"]
+
+    if recurrence == "none":
+        date_str = request.form["block_date"]
+        starts_at = datetime.fromisoformat(f"{date_str}T{start_time_str}")
+        ends_at = datetime.fromisoformat(f"{date_str}T{end_time_str}")
+        block = CalendarBlock(title=goal.title, starts_at=starts_at, ends_at=ends_at, allowed_apps=allowed_apps)
+        db.session.add(block)
+        db.session.flush()
+        goal.calendar_block_id = block.id
+        db.session.commit()
+        flash(f"'{goal.title}' added to calendar.", "success")
+    else:
+        days_of_week = ""
+        day_of_month = None
+        if recurrence == "weekly":
+            selected = request.form.getlist("days_of_week")
+            days_of_week = ",".join(selected)
+        elif recurrence == "daily":
+            days_of_week = "0,1,2,3,4,5,6"
+        elif recurrence == "monthly":
+            day_of_month = int(request.form.get("day_of_month", 1))
+        r = RecurringBlock(
+            title=goal.title, start_time=start_time_str, end_time=end_time_str,
+            allowed_apps=allowed_apps, recurrence_type=recurrence,
+            days_of_week=days_of_week, day_of_month=day_of_month
+        )
+        db.session.add(r)
+        db.session.commit()
+        flash(f"'{goal.title}' added as recurring calendar block.", "success")
+    return redirect(request.referrer or url_for("tracks_index"))
+
+
+@app.route("/goals/<id>/move-status", methods=["POST"])
+def move_goal_status(id):
+    """Move a goal's kanban status from the track view."""
+    goal = Goal.query.get_or_404(id)
+    direction = request.form["direction"]
+    order = ["doing_next", "doing", "done"]
+    idx = order.index(goal.status)
+    if direction == "forward" and idx < 2:
+        new_status = order[idx + 1]
+        if new_status == "doing":
+            doing_count = Goal.query.filter_by(status="doing").filter(Goal.id != id).count()
+            if doing_count >= 3:
+                flash("Doing column is full (max 3).", "danger")
+                return redirect(request.referrer or url_for("tracks_index"))
+        goal.status = new_status
+    elif direction == "back" and idx > 0:
+        goal.status = order[idx - 1]
+    db.session.commit()
+    return redirect(request.referrer or url_for("tracks_index"))
 
 
 # ─── Kanban ──────────────────────────────────────────────────────────────────

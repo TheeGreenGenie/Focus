@@ -100,7 +100,7 @@
         {% for cp in track.checkpoints %}
           <!-- Display row -->
           <div id="cp-view-{{ cp.id }}" class="d-flex align-items-start p-2 mb-1 rounded {% if cp.completed %}bg-success bg-opacity-10{% else %}bg-light{% endif %}">
-            <form method="post" action="{{ url_for('toggle_checkpoint', track_id=track.id, cp_id=cp.id) }}" class="me-2">
+            <form method="post" action="{{ url_for('toggle_checkpoint', track_id=track.id, cp_id=cp.id) }}" class="me-2 flex-shrink-0">
               <button class="btn btn-sm {% if cp.completed %}btn-success{% else %}btn-outline-secondary{% endif %} py-0 px-1">
                 <i class="bi {% if cp.completed %}bi-check-circle-fill{% else %}bi-circle{% endif %}"></i>
               </button>
@@ -109,6 +109,9 @@
               <span class="{% if cp.completed %}text-decoration-line-through text-muted{% else %}fw-semibold{% endif %}">
                 {{ cp.title }}
               </span>
+              {% if cp.is_goal %}
+                <span class="badge bg-primary bg-opacity-10 text-primary ms-1" style="font-size:0.7rem;">on kanban</span>
+              {% endif %}
               {% if cp.description %}
                 <p class="text-muted small mb-0">{{ cp.description }}</p>
               {% endif %}
@@ -116,17 +119,98 @@
                 <span class="text-muted small"><i class="bi bi-calendar3 me-1"></i>{{ cp.target_date.strftime('%b %d, %Y') }}</span>
               {% endif %}
             </div>
-            <div class="d-flex gap-1 ms-2">
-              <button class="btn btn-sm btn-outline-secondary py-0 px-1" onclick="toggleRow('cp-view-{{ cp.id }}','cp-edit-{{ cp.id }}')">
+            <div class="d-flex gap-1 ms-2 flex-shrink-0">
+              <!-- Kanban: equip / dequip -->
+              {% if not cp.completed %}
+                {% if cp.is_goal %}
+                  <form method="post" action="{{ url_for('dequip_checkpoint_as_goal', track_id=track.id, cp_id=cp.id) }}">
+                    <button class="btn btn-sm btn-primary py-0 px-1" title="Remove from Kanban">
+                      <i class="bi bi-kanban-fill"></i>
+                    </button>
+                  </form>
+                {% else %}
+                  <form method="post" action="{{ url_for('equip_checkpoint_as_goal', track_id=track.id, cp_id=cp.id) }}">
+                    <button class="btn btn-sm btn-outline-primary py-0 px-1" title="Send to Kanban">
+                      <i class="bi bi-kanban"></i>
+                    </button>
+                  </form>
+                {% endif %}
+              {% endif %}
+              <!-- Calendar -->
+              <button class="btn btn-sm btn-outline-success py-0 px-1" title="Add to Calendar"
+                onclick="togglePanel('cp-view-{{ cp.id }}','cp-sched-{{ cp.id }}')">
+                <i class="bi bi-calendar-plus"></i>
+              </button>
+              <!-- Edit -->
+              <button class="btn btn-sm btn-outline-secondary py-0 px-1" title="Edit"
+                onclick="togglePanel('cp-view-{{ cp.id }}','cp-edit-{{ cp.id }}')">
                 <i class="bi bi-pencil"></i>
               </button>
+              <!-- Delete -->
               <form method="post" action="{{ url_for('delete_checkpoint', track_id=track.id, cp_id=cp.id) }}"
                 onsubmit="return confirm('Delete checkpoint?')">
                 <button class="btn btn-sm btn-outline-danger py-0 px-1"><i class="bi bi-trash"></i></button>
               </form>
             </div>
           </div>
-          <!-- Edit row -->
+
+          <!-- Schedule panel -->
+          <div id="cp-sched-{{ cp.id }}" style="display:none;" class="mb-2 p-2 rounded border border-success-subtle bg-success bg-opacity-10">
+            <form method="post" action="{{ url_for('schedule_checkpoint', track_id=track.id, cp_id=cp.id) }}">
+              <p class="small fw-semibold mb-2 text-success"><i class="bi bi-calendar-plus me-1"></i>Schedule "{{ cp.title }}"</p>
+              <div class="mb-2">
+                <label class="form-label small text-muted mb-1">Repeat</label>
+                <select name="recurrence_type" class="form-select form-select-sm" onchange="toggleRecurrence(this,'cp-rec-{{ cp.id }}','cp-date-{{ cp.id }}')">
+                  <option value="none">One-time</option>
+                  <option value="daily">Daily</option>
+                  <option value="weekly">Weekly</option>
+                  <option value="monthly">Monthly</option>
+                </select>
+              </div>
+              <!-- One-time date (hidden when recurring) -->
+              <div id="cp-date-{{ cp.id }}" class="mb-2">
+                <label class="form-label small text-muted mb-1">Date</label>
+                <input type="date" name="block_date" class="form-control form-control-sm" value="{{ today.isoformat() }}">
+              </div>
+              <!-- Recurrence-specific options (hidden when one-time) -->
+              <div id="cp-rec-{{ cp.id }}" style="display:none;">
+                <div class="mb-2">
+                  <label class="form-label small text-muted mb-1" id="cp-rec-label-{{ cp.id }}">Days</label>
+                  <div id="cp-weekly-days-{{ cp.id }}" class="d-flex flex-wrap gap-1 mb-2">
+                    {% for day_num, day_name in [(0,'Mon'),(1,'Tue'),(2,'Wed'),(3,'Thu'),(4,'Fri'),(5,'Sat'),(6,'Sun')] %}
+                      <div class="form-check form-check-inline me-0">
+                        <input class="form-check-input" type="checkbox" name="days_of_week" value="{{ day_num }}" id="cp-dow-{{ cp.id }}-{{ day_num }}">
+                        <label class="form-check-label small" for="cp-dow-{{ cp.id }}-{{ day_num }}">{{ day_name }}</label>
+                      </div>
+                    {% endfor %}
+                  </div>
+                  <div id="cp-monthly-day-{{ cp.id }}" style="display:none;">
+                    <input type="number" name="day_of_month" class="form-control form-control-sm" min="1" max="31" value="1" placeholder="Day of month">
+                  </div>
+                </div>
+              </div>
+              <div class="row g-2 mb-2">
+                <div class="col">
+                  <label class="form-label small text-muted mb-1">Start</label>
+                  <input type="time" name="start_time" class="form-control form-control-sm" value="09:00" required>
+                </div>
+                <div class="col">
+                  <label class="form-label small text-muted mb-1">End</label>
+                  <input type="time" name="end_time" class="form-control form-control-sm" value="10:00" required>
+                </div>
+              </div>
+              <div class="mb-2">
+                <input type="text" name="allowed_apps" class="form-control form-control-sm" placeholder="Allowed apps (optional, comma-separated)">
+              </div>
+              <div class="d-flex gap-2">
+                <button class="btn btn-sm btn-success">Add to Calendar</button>
+                <button type="button" class="btn btn-sm btn-outline-secondary"
+                  onclick="togglePanel('cp-view-{{ cp.id }}','cp-sched-{{ cp.id }}')">Cancel</button>
+              </div>
+            </form>
+          </div>
+
+          <!-- Edit panel -->
           <div id="cp-edit-{{ cp.id }}" style="display:none;" class="mb-2 p-2 rounded border">
             <form method="post" action="{{ url_for('edit_checkpoint', track_id=track.id, cp_id=cp.id) }}">
               <div class="mb-2">
@@ -142,7 +226,7 @@
               <div class="d-flex gap-2">
                 <button class="btn btn-sm btn-primary">Save</button>
                 <button type="button" class="btn btn-sm btn-outline-secondary"
-                  onclick="toggleRow('cp-view-{{ cp.id }}','cp-edit-{{ cp.id }}')">Cancel</button>
+                  onclick="togglePanel('cp-view-{{ cp.id }}','cp-edit-{{ cp.id }}')">Cancel</button>
               </div>
             </form>
           </div>
@@ -155,30 +239,121 @@
     <!-- Associated goals -->
     {% if track.goals %}
     <div class="card p-3">
-      <h6 class="mb-3">Associated Goals</h6>
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <h6 class="mb-0">Goals <span class="text-muted fw-normal small">(on Kanban)</span></h6>
+        <a href="{{ url_for('kanban_index') }}" class="btn btn-sm btn-outline-secondary py-0">
+          <i class="bi bi-kanban me-1"></i>View Kanban
+        </a>
+      </div>
       {% for goal in track.goals %}
         <!-- Display row -->
         <div id="goal-view-{{ goal.id }}" class="d-flex align-items-center p-2 mb-1 rounded bg-light">
-          <span class="badge bg-{% if goal.status == 'done' %}success{% elif goal.status == 'doing' %}primary{% else %}secondary{% endif %} me-2">
+          <!-- Move back -->
+          {% if goal.status != 'doing_next' %}
+            <form method="post" action="{{ url_for('move_goal_status', id=goal.id) }}" class="me-1 flex-shrink-0">
+              <input type="hidden" name="direction" value="back">
+              <button class="btn btn-sm btn-outline-secondary py-0 px-1" title="Move back"><i class="bi bi-arrow-left"></i></button>
+            </form>
+          {% else %}
+            <div style="width:30px;" class="me-1 flex-shrink-0"></div>
+          {% endif %}
+
+          <span class="badge bg-{% if goal.status == 'done' %}success{% elif goal.status == 'doing' %}primary{% else %}secondary{% endif %} me-2 flex-shrink-0" style="min-width:72px;">
             {{ goal.status.replace('_', ' ') }}
           </span>
           <span class="flex-grow-1 {% if goal.status == 'done' %}text-muted text-decoration-line-through{% endif %}">
             {{ goal.title }}
           </span>
           {% if goal.due_at %}
-            <span class="text-muted small me-2">Due {{ goal.due_at.strftime('%b %d') }}</span>
+            <span class="text-muted small me-2 flex-shrink-0"><i class="bi bi-clock me-1"></i>{{ goal.due_at.strftime('%b %d') }}</span>
           {% endif %}
-          <div class="d-flex gap-1">
-            <button class="btn btn-sm btn-outline-secondary py-0 px-1" onclick="toggleRow('goal-view-{{ goal.id }}','goal-edit-{{ goal.id }}')">
+          {% if goal.calendar_block_id %}
+            <span class="text-success small me-1 flex-shrink-0" title="Scheduled on calendar"><i class="bi bi-calendar-check"></i></span>
+          {% endif %}
+
+          <div class="d-flex gap-1 ms-1 flex-shrink-0">
+            <!-- Move forward -->
+            {% if goal.status != 'done' %}
+              <form method="post" action="{{ url_for('move_goal_status', id=goal.id) }}">
+                <input type="hidden" name="direction" value="forward">
+                <button class="btn btn-sm btn-outline-primary py-0 px-1" title="Move forward"><i class="bi bi-arrow-right"></i></button>
+              </form>
+            {% endif %}
+            <!-- Calendar -->
+            <button class="btn btn-sm btn-outline-success py-0 px-1" title="Add to Calendar"
+              onclick="togglePanel('goal-view-{{ goal.id }}','goal-sched-{{ goal.id }}')">
+              <i class="bi bi-calendar-plus"></i>
+            </button>
+            <!-- Edit -->
+            <button class="btn btn-sm btn-outline-secondary py-0 px-1" title="Edit"
+              onclick="togglePanel('goal-view-{{ goal.id }}','goal-edit-{{ goal.id }}')">
               <i class="bi bi-pencil"></i>
             </button>
+            <!-- Delete -->
             <form method="post" action="{{ url_for('delete_goal', id=goal.id) }}"
               onsubmit="return confirm('Delete goal?')">
               <button class="btn btn-sm btn-outline-danger py-0 px-1"><i class="bi bi-trash"></i></button>
             </form>
           </div>
         </div>
-        <!-- Edit row -->
+
+        <!-- Schedule panel -->
+        <div id="goal-sched-{{ goal.id }}" style="display:none;" class="mb-2 p-2 rounded border border-success-subtle bg-success bg-opacity-10">
+          <form method="post" action="{{ url_for('schedule_goal', id=goal.id) }}">
+            <p class="small fw-semibold mb-2 text-success"><i class="bi bi-calendar-plus me-1"></i>Schedule "{{ goal.title }}"</p>
+            <div class="mb-2">
+              <label class="form-label small text-muted mb-1">Repeat</label>
+              <select name="recurrence_type" class="form-select form-select-sm" onchange="toggleRecurrence(this,'goal-rec-{{ goal.id }}','goal-date-{{ goal.id }}')">
+                <option value="none">One-time</option>
+                <option value="daily">Daily</option>
+                <option value="weekly">Weekly</option>
+                <option value="monthly">Monthly</option>
+              </select>
+            </div>
+            <!-- One-time date -->
+            <div id="goal-date-{{ goal.id }}" class="mb-2">
+              <label class="form-label small text-muted mb-1">Date</label>
+              <input type="date" name="block_date" class="form-control form-control-sm" value="{{ today.isoformat() }}">
+            </div>
+            <!-- Recurrence options -->
+            <div id="goal-rec-{{ goal.id }}" style="display:none;">
+              <div class="mb-2">
+                <label class="form-label small text-muted mb-1">Days</label>
+                <div id="goal-weekly-days-{{ goal.id }}" class="d-flex flex-wrap gap-1 mb-2">
+                  {% for day_num, day_name in [(0,'Mon'),(1,'Tue'),(2,'Wed'),(3,'Thu'),(4,'Fri'),(5,'Sat'),(6,'Sun')] %}
+                    <div class="form-check form-check-inline me-0">
+                      <input class="form-check-input" type="checkbox" name="days_of_week" value="{{ day_num }}" id="goal-dow-{{ goal.id }}-{{ day_num }}">
+                      <label class="form-check-label small" for="goal-dow-{{ goal.id }}-{{ day_num }}">{{ day_name }}</label>
+                    </div>
+                  {% endfor %}
+                </div>
+                <div id="goal-monthly-day-{{ goal.id }}" style="display:none;">
+                  <input type="number" name="day_of_month" class="form-control form-control-sm" min="1" max="31" value="1" placeholder="Day of month">
+                </div>
+              </div>
+            </div>
+            <div class="row g-2 mb-2">
+              <div class="col">
+                <label class="form-label small text-muted mb-1">Start</label>
+                <input type="time" name="start_time" class="form-control form-control-sm" value="09:00" required>
+              </div>
+              <div class="col">
+                <label class="form-label small text-muted mb-1">End</label>
+                <input type="time" name="end_time" class="form-control form-control-sm" value="10:00" required>
+              </div>
+            </div>
+            <div class="mb-2">
+              <input type="text" name="allowed_apps" class="form-control form-control-sm" placeholder="Allowed apps (optional, comma-separated)">
+            </div>
+            <div class="d-flex gap-2">
+              <button class="btn btn-sm btn-success">Add to Calendar</button>
+              <button type="button" class="btn btn-sm btn-outline-secondary"
+                onclick="togglePanel('goal-view-{{ goal.id }}','goal-sched-{{ goal.id }}')">Cancel</button>
+            </div>
+          </form>
+        </div>
+
+        <!-- Edit panel -->
         <div id="goal-edit-{{ goal.id }}" style="display:none;" class="mb-2 p-2 rounded border">
           <form method="post" action="{{ url_for('edit_goal', id=goal.id) }}">
             <div class="mb-2">
@@ -205,7 +380,7 @@
             <div class="d-flex gap-2">
               <button class="btn btn-sm btn-success">Save</button>
               <button type="button" class="btn btn-sm btn-outline-secondary"
-                onclick="toggleRow('goal-view-{{ goal.id }}','goal-edit-{{ goal.id }}')">Cancel</button>
+                onclick="togglePanel('goal-view-{{ goal.id }}','goal-edit-{{ goal.id }}')">Cancel</button>
             </div>
           </form>
         </div>
@@ -216,12 +391,38 @@
 </div>
 
 <script>
-function toggleRow(viewId, editId) {
+function togglePanel(viewId, panelId) {
   var v = document.getElementById(viewId);
-  var e = document.getElementById(editId);
-  var showing = e.style.display !== 'none';
-  v.style.display = showing ? '' : 'none';
-  e.style.display = showing ? 'none' : '';
+  var p = document.getElementById(panelId);
+  var opening = p.style.display === 'none';
+  // Close any other open panels for this row by finding siblings
+  var prefix = panelId.substring(0, panelId.lastIndexOf('-'));
+  ['edit','sched'].forEach(function(kind) {
+    var id = prefix + '-' + kind;
+    var el = document.getElementById(id);
+    if (el && el.id !== panelId) el.style.display = 'none';
+  });
+  p.style.display = opening ? '' : 'none';
+  v.style.display = opening ? 'none' : '';
+}
+
+function toggleRecurrence(select, recId, dateId) {
+  var recEl = document.getElementById(recId);
+  var dateEl = document.getElementById(dateId);
+  var val = select.value;
+  var isRecurring = val !== 'none';
+  recEl.style.display = isRecurring ? '' : 'none';
+  dateEl.style.display = isRecurring ? 'none' : '';
+
+  // Show/hide weekly vs monthly sub-options
+  // recId format: "cp-rec-UUID" or "goal-rec-UUID"
+  var parts = recId.split('-');
+  var kind = parts[0]; // "cp" or "goal"
+  var uuid = parts.slice(2).join('-');
+  var weeklyEl = document.getElementById(kind + '-weekly-days-' + uuid);
+  var monthlyEl = document.getElementById(kind + '-monthly-day-' + uuid);
+  if (weeklyEl) weeklyEl.style.display = (val === 'weekly') ? '' : 'none';
+  if (monthlyEl) monthlyEl.style.display = (val === 'monthly') ? '' : 'none';
 }
 </script>
 {% endblock %}
