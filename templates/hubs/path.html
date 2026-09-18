@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block title %} - Path{% endblock %}
+{% block content %}
+<div class="focus-page-title">
+  <div>
+    <div class="focus-kicker">Long-term direction</div>
+    <h2 class="focus-display mb-0">Path</h2>
+  </div>
+  <a href="{{ url_for('mastery_index') }}" class="btn btn-sm btn-primary">
+    <i class="bi bi-compass me-1"></i>Mastery
+  </a>
+</div>
+
+<div class="row g-3">
+  <div class="col-12 col-xl-7">
+    <div class="card p-4 h-100">
+      <h4 class="mb-3">Life Direction</h4>
+      {% if life_task and life_task.current_hypothesis %}
+        <div class="focus-kicker mb-1">Life's Task hypothesis</div>
+        <p>{{ life_task.current_hypothesis }}</p>
+        <div class="progress mb-2" style="height:6px;">
+          <div class="progress-bar" style="width:{{ life_task.confidence * 10 }}%"></div>
+        </div>
+        <span class="badge bg-primary bg-opacity-10 text-primary border">Confidence {{ life_task.confidence }}/10</span>
+      {% else %}
+        <p class="text-muted">Create a Life's Task profile to anchor the path.</p>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="col-12 col-xl-5">
+    <div class="card p-3 h-100">
+      <h5 class="mb-3">Current Campaigns</h5>
+      {% if current_tracks %}
+        {% for track in current_tracks %}
+          <a href="{{ url_for('track_detail', id=track.id) }}" class="text-decoration-none">
+            <div class="p-3 rounded bg-light mb-2">
+              <div class="d-flex justify-content-between gap-2 text-dark">
+                <span class="fw-semibold">{{ track.title }}</span>
+                <span class="small text-muted">{{ track.completion_pct }}%</span>
+              </div>
+              <div class="text-muted small mb-2">{{ track.mastery_phase.replace('_', ' ').title() }}</div>
+              <div class="progress" style="height:6px;"><div class="progress-bar" style="width:{{ track.completion_pct }}%"></div></div>
+            </div>
+          </a>
+        {% endfor %}
+      {% else %}
+        <p class="text-muted mb-0">No active tracks. Promote a track when you are ready.</p>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="col-12 col-xl-4">
+    <a href="{{ url_for('tracks_index') }}" class="hub-card card p-3 text-decoration-none h-100">
+      <i class="bi bi-map"></i>
+      <h5>Tracks</h5>
+      <p>Choose and maintain the campaigns that matter now.</p>
+    </a>
+  </div>
+  <div class="col-12 col-xl-4">
+    <a href="{{ url_for('mastery_index') }}" class="hub-card card p-3 text-decoration-none h-100">
+      <i class="bi bi-compass"></i>
+      <h5>Mastery</h5>
+      <p>Life's Task, skill tree, mentors, practice, and purpose reviews.</p>
+    </a>
+  </div>
+  <div class="col-12 col-xl-4">
+    <a href="{{ url_for('progress_index') }}" class="hub-card card p-3 text-decoration-none h-100">
+      <i class="bi bi-trophy"></i>
+      <h5>Proof</h5>
+      <p>{{ total_completed }} completed track{{ total_completed != 1 and 's' or '' }}.</p>
+    </a>
+  </div>
+</div>
+{% endblock %}

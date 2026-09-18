@@ -1,0 +1,127 @@
+{% extends "base.html" %}
+{% block title %} - Mastery{% endblock %}
+{% block content %}
+<div class="focus-page-title">
+  <div>
+    <div class="focus-kicker">Greene-first growth architecture</div>
+    <h2 class="focus-display mb-0">Mastery</h2>
+  </div>
+  <a href="{{ url_for('tracks_index') }}" class="btn btn-sm btn-outline-primary">
+    <i class="bi bi-map me-1"></i>Tracks
+  </a>
+</div>
+
+<div class="row g-3">
+  <div class="col-12 col-lg-5">
+    <div class="card p-3 mb-3">
+      <h5 class="mb-3">Life's Task Profile</h5>
+      <form method="post" action="{{ url_for('save_life_task_profile') }}">
+        <div class="mb-2">
+          <label class="form-label small text-muted">Primal inclinations</label>
+          <textarea name="primal_inclinations" class="form-control form-control-sm" rows="3"
+            placeholder="Childhood fascinations, recurring interests, flow moments">{{ profile.primal_inclinations if profile else '' }}</textarea>
+        </div>
+        <div class="mb-2">
+          <label class="form-label small text-muted">Admired models</label>
+          <textarea name="admired_models" class="form-control form-control-sm" rows="2"
+            placeholder="People, books, creators, teachers, anti-models">{{ profile.admired_models if profile else '' }}</textarea>
+        </div>
+        <div class="mb-2">
+          <label class="form-label small text-muted">False paths</label>
+          <textarea name="false_paths" class="form-control form-control-sm" rows="2"
+            placeholder="Approval, status, fear, inertia, borrowed dreams">{{ profile.false_paths if profile else '' }}</textarea>
+        </div>
+        <div class="mb-2">
+          <label class="form-label small text-muted">Current hypothesis</label>
+          <textarea name="current_hypothesis" class="form-control form-control-sm" rows="3"
+            placeholder="What might your Life's Task be right now?">{{ profile.current_hypothesis if profile else '' }}</textarea>
+        </div>
+        <div class="mb-3">
+          <label class="form-label small text-muted">Confidence</label>
+          <input type="range" name="confidence" class="form-range" min="1" max="10" value="{{ profile.confidence if profile else 5 }}">
+        </div>
+        <button class="btn btn-primary btn-sm w-100">Save Profile</button>
+      </form>
+    </div>
+  </div>
+
+  <div class="col-12 col-lg-7">
+    <div class="card p-3 mb-3">
+      <h5 class="mb-3">Current Mastery Tracks</h5>
+      {% if current_tracks %}
+        {% for track in current_tracks %}
+          <a href="{{ url_for('track_detail', id=track.id) }}" class="text-decoration-none">
+            <div class="p-2 mb-2 rounded bg-light">
+              <div class="d-flex justify-content-between align-items-center gap-2">
+                <div class="fw-semibold text-dark">{{ track.title }}</div>
+                <span class="badge bg-primary">{{ track.mastery_phase.replace('_', ' ').title() }}</span>
+              </div>
+              {% if track.life_task_link %}
+                <div class="text-muted small mt-1">{{ track.life_task_link[:180] }}{% if track.life_task_link|length > 180 %}...{% endif %}</div>
+              {% endif %}
+              <div class="progress mt-2" style="height:5px;">
+                <div class="progress-bar" style="width:{{ track.completion_pct }}%"></div>
+              </div>
+            </div>
+          </a>
+        {% endfor %}
+      {% else %}
+        <p class="text-muted mb-0">No current mastery tracks yet.</p>
+      {% endif %}
+    </div>
+
+    <div class="row g-3">
+      <div class="col-12 col-md-6">
+        <div class="card p-3 h-100">
+          <h6 class="mb-3">Recent Practice</h6>
+          {% if recent_practice %}
+            {% for p in recent_practice %}
+              <div class="border-bottom pb-2 mb-2">
+                <div class="fw-semibold small">{{ p.mode.replace('_', ' ').title() }}</div>
+                <div class="text-muted small">{{ p.track.title }} - Difficulty {{ p.difficulty }}/10</div>
+                {% if p.notes %}<div class="small">{{ p.notes[:120] }}{% if p.notes|length > 120 %}...{% endif %}</div>{% endif %}
+              </div>
+            {% endfor %}
+          {% else %}
+            <p class="text-muted small mb-0">No practice sessions logged.</p>
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="col-12 col-md-6">
+        <div class="card p-3 h-100">
+          <h6 class="mb-3">Mentors &amp; Models</h6>
+          {% if mentors %}
+            {% for mentor in mentors %}
+              <div class="border-bottom pb-2 mb-2">
+                <div class="fw-semibold small">{{ mentor.name }}</div>
+                <div class="text-muted small">{{ mentor.mentor_type.replace('_', ' ').title() }}{% if mentor.track %} - {{ mentor.track.title }}{% endif %}</div>
+              </div>
+            {% endfor %}
+          {% else %}
+            <p class="text-muted small mb-0">No mentors or models mapped.</p>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <div class="card p-3 mt-3">
+      <h6 class="mb-3">Recent Purpose Reviews</h6>
+      {% if purpose_reviews %}
+        {% for review in purpose_reviews %}
+          <div class="d-flex align-items-start p-2 mb-1 rounded bg-light">
+            <span class="badge bg-secondary me-2">{{ review.status.replace('_', ' ').title() }}</span>
+            <div>
+              <div class="small fw-semibold">{{ review.track.title if review.track else 'General' }}</div>
+              <div class="text-muted small">{{ review.period_start.strftime('%b %d') }} - {{ review.period_end.strftime('%b %d') }}</div>
+              {% if review.next_adjustment %}<div class="small">{{ review.next_adjustment }}</div>{% endif %}
+            </div>
+          </div>
+        {% endfor %}
+      {% else %}
+        <p class="text-muted small mb-0">No purpose reviews yet.</p>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

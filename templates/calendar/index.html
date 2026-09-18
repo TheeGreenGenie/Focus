@@ -1,145 +1,512 @@
 {% extends "base.html" %}
-{% block title %} — Calendar{% endblock %}
-
+{% block title %} - Calendar{% endblock %}
 {% block main_class %}main-flex{% endblock %}
 
 {% block page_style %}
 <style>
-/* Tighter calendar so most of it fits above the fold */
-#cal-scroll          { scroll-behavior: smooth; }
+#cal-scroll,
+.mobile-calendar-scroll {
+  scroll-behavior: smooth;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
+.calendar-grid-card {
+  flex: 1;
+  min-height: min(72vh, 760px);
+  display: flex;
+  flex-direction: column;
+}
+
+.calendar-day-column {
+  position: relative;
+  height: {{ total_height }}px;
+  min-width: 0;
+}
+
+.calendar-time-gutter {
+  width: 56px;
+  min-width: 56px;
+  flex-shrink: 0;
+  position: relative;
+  height: {{ total_height }}px;
+  border-right: 1px solid rgba(24,32,29,.1);
+  background: rgba(255,253,248,.76);
+}
+
+.calendar-hour-label {
+  position: absolute;
+  top: var(--hour-top);
+  right: 8px;
+  color: rgba(24,32,29,.58);
+  font-size: .76rem;
+  font-weight: 700;
+  line-height: 1;
+  transform: translateY(-50%);
+}
+
+.calendar-header-spacer {
+  width: 56px;
+  min-width: 56px;
+  flex-shrink: 0;
+  border-right: 1px solid rgba(24,32,29,.1);
+}
+
+.calendar-header-cell {
+  min-height: 58px;
+}
+
+.calendar-block {
+  position: absolute;
+  left: 6px;
+  right: 6px;
+  border-radius: 6px;
+  padding: 7px 10px;
+  overflow: hidden;
+  z-index: 1;
+  outline: 0;
+  box-shadow: 0 4px 12px rgba(24,32,29,.05);
+}
+
+.calendar-block:focus-visible {
+  box-shadow: 0 0 0 3px rgba(29,95,74,.24), 0 4px 12px rgba(24,32,29,.08);
+}
+
+.calendar-block-title {
+  font-size: .9rem;
+  line-height: 1.25;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.calendar-block-detail {
+  color: var(--muted);
+  font-size: .76rem;
+  white-space: nowrap;
+}
+
+.calendar-block-meta {
+  color: var(--muted);
+  font-size: .7rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.calendar-grid-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: var(--line-top);
+  border-top: 1px solid rgba(24,32,29,var(--line-alpha));
+  pointer-events: none;
+}
+
+.calendar-half-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: var(--line-half-top);
+  border-top: 1px dashed rgba(24,32,29,.04);
+  pointer-events: none;
+}
+
+.calendar-now-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.calendar-now-line > div {
+  height: 2px;
+  background: rgba(157,63,63,.82);
+  position: relative;
+}
+
+.calendar-now-line > div::before {
+  content: "";
+  width: 9px;
+  height: 9px;
+  background: #9d3f3f;
+  border-radius: 50%;
+  position: absolute;
+  left: -4px;
+  top: -4px;
+}
+
+.calendar-date-range {
+  font-size: .95rem;
+}
+
+@media (max-width: 767.98px) {
+  .calendar-grid-card {
+    min-height: 66vh;
+  }
+
+  .calendar-time-gutter,
+  .calendar-header-spacer {
+    width: 50px;
+    min-width: 50px;
+  }
+
+  .calendar-hour-label {
+    font-size: .7rem;
+    right: 6px;
+  }
+
+  .calendar-block-title {
+    font-size: .86rem;
+  }
+
+  .calendar-block-detail {
+    font-size: .72rem;
+  }
+}
 </style>
 {% endblock %}
 
 {% block content %}
-<!-- Top bar -->
-<div class="d-flex justify-content-between align-items-center mb-1 flex-wrap gap-2" style="flex-shrink:0;">
-  <h5 class="mb-0">Calendar</h5>
+<div class="focus-page-title" style="flex-shrink:0;">
+  <div>
+    <div class="focus-kicker">Today's operating rhythm</div>
+    <h2 class="focus-display mb-0">Calendar</h2>
+  </div>
   <div class="d-flex gap-2 align-items-center flex-wrap">
-    <a href="{{ url_for('calendar_index', day=prev_day) }}" class="btn btn-outline-secondary btn-sm px-3">
+    <a href="{{ url_for('calendar_index', day=prev_day) }}" class="btn btn-outline-secondary btn-sm" aria-label="Previous day">
       <i class="bi bi-chevron-left"></i>
     </a>
-    <span class="text-muted small fw-semibold text-nowrap">
-      {{ days[0].strftime('%a, %b %d') }} – {{ days[1].strftime('%a, %b %d, %Y') }}
+    <span class="text-muted fw-semibold text-nowrap calendar-date-range">
+      {{ days[0].strftime('%a, %b %d') }} - {{ days[1].strftime('%a, %b %d, %Y') }}
     </span>
-    <a href="{{ url_for('calendar_index', day=next_day) }}" class="btn btn-outline-secondary btn-sm px-3">
+    <a href="{{ url_for('calendar_index', day=next_day) }}" class="btn btn-outline-secondary btn-sm" aria-label="Next day">
       <i class="bi bi-chevron-right"></i>
     </a>
     <a href="{{ url_for('calendar_index') }}" class="btn btn-outline-primary btn-sm">Today</a>
+    <a href="#calendar-grid-anchor" class="btn btn-outline-secondary btn-sm">
+      <i class="bi bi-calendar-week me-1"></i>View Grid
+    </a>
+    <div class="btn-group btn-group-sm" role="group" aria-label="Jump calendar time">
+      <button type="button" class="btn btn-outline-secondary" data-scroll-hour="8">8a</button>
+      <button type="button" class="btn btn-outline-secondary" data-scroll-hour="12">12p</button>
+      <button type="button" class="btn btn-outline-secondary" data-scroll-hour="18">6p</button>
+    </div>
+    <button class="btn btn-outline-secondary btn-sm" type="button"
+            data-bs-toggle="collapse" data-bs-target="#calendar-tools"
+            aria-expanded="true" aria-controls="calendar-tools"
+            aria-label="Show or hide planning tools">
+      <i class="bi bi-sliders me-1"></i>Tools
+    </button>
   </div>
 </div>
 
-<!-- New block form -->
-<div class="card p-2 mb-1 cal-add-form" style="flex-shrink:0;">
+<div class="card p-2 mb-3 cal-add-form" style="flex-shrink:0;">
   <form method="post" action="{{ url_for('create_block') }}" class="row g-2 align-items-end">
-    <div class="col-12 col-sm-6 col-md-3">
-      <input type="text" name="title" class="form-control form-control-sm" placeholder="Block title" required>
+    <div class="col-12 col-sm-6 col-xl-2">
+      <label class="visually-hidden" for="quick-block-title">Block title</label>
+      <input id="quick-block-title" type="text" name="title" class="form-control form-control-sm" placeholder="Block title" required>
     </div>
-    <div class="col-12 col-sm-6 col-md-3">
-      <input type="datetime-local" name="starts_at" class="form-control form-control-sm" required>
+    <div class="col-12 col-sm-6 col-xl-2">
+      <label class="visually-hidden" for="quick-block-category">Category</label>
+      <select id="quick-block-category" name="category" class="form-select form-select-sm" aria-label="Block category">
+        {% for value, label in calendar_categories %}
+          <option value="{{ value }}">{{ label }}</option>
+        {% endfor %}
+      </select>
     </div>
-    <div class="col-12 col-sm-6 col-md-3">
-      <input type="datetime-local" name="ends_at" class="form-control form-control-sm" required>
+    <div class="col-12 col-sm-6 col-xl-2">
+      <label class="visually-hidden" for="quick-block-interest">Interest</label>
+      <select id="quick-block-interest" name="interest_id" class="form-select form-select-sm" aria-label="Linked interest">
+        <option value="">No interest</option>
+        {% for interest in interests %}
+          <option value="{{ interest.id }}">{{ interest.name }}</option>
+        {% endfor %}
+      </select>
     </div>
-    <div class="col-12 col-sm-6 col-md-2">
-      <input type="text" name="allowed_apps" class="form-control form-control-sm" placeholder="Allowed apps">
+    <div class="col-12 col-sm-6 col-xl-2">
+      <label class="visually-hidden" for="quick-block-start">Start date and time</label>
+      <input id="quick-block-start" type="datetime-local" name="starts_at" class="form-control form-control-sm" required>
     </div>
-    <div class="col-12 col-md-1">
+    <div class="col-12 col-sm-6 col-xl-2">
+      <label class="visually-hidden" for="quick-block-end">End date and time</label>
+      <input id="quick-block-end" type="datetime-local" name="ends_at" class="form-control form-control-sm" required>
+    </div>
+    <div class="col-12 col-sm-6 col-xl-1">
+      <label class="visually-hidden" for="quick-block-apps">Allowed apps</label>
+      <input id="quick-block-apps" type="text" name="allowed_apps" class="form-control form-control-sm" placeholder="Allowed apps">
+    </div>
+    <div class="col-12 col-xl-1">
       <button class="btn btn-primary btn-sm w-100">Add</button>
     </div>
   </form>
 </div>
 
-<!-- Calendar card — margins let the page background breathe around the card -->
-<div class="card overflow-hidden cal-card d-none d-md-flex"
-     style="flex:1;min-height:0;display:flex;flex-direction:column;margin:2rem 6rem 3rem;">
-
-  <!-- Sticky day headers -->
-  <div class="d-flex" style="flex-shrink:0;border-bottom:1px solid rgba(0,0,0,0.1);">
-    <div style="width:44px;min-width:44px;flex-shrink:0;border-right:1px solid rgba(0,0,0,0.08);"></div>
-    {% for day in days %}
-    <div class="flex-grow-1 text-center py-2"
-         style="{% if not loop.last %}border-right:1px solid rgba(0,0,0,0.06);{% endif %}
-                {% if day.isoformat() == today_day %}background:rgba(13,110,253,0.04);{% endif %}">
-      <div class="text-muted" style="font-size:0.7rem;text-transform:uppercase;letter-spacing:.05em;">
-        {{ day.strftime('%A') }}
+<div id="calendar-tools" class="collapse show" style="flex-shrink:0;">
+<div class="row g-3 mb-3">
+  <div class="col-12 col-xl-4">
+    <div class="card p-3 h-100">
+      <div class="d-flex justify-content-between align-items-center mb-3 gap-2">
+        <div>
+          <h6 class="mb-0">Interests</h6>
+          <div class="text-muted small">Preselected blocks for energy outside work and school.</div>
+        </div>
+        <div class="d-flex gap-2">
+          <a href="{{ url_for('recurring_index') }}" class="btn btn-sm btn-outline-primary" aria-label="Recurring blocks">
+            <i class="bi bi-arrow-repeat"></i>
+          </a>
+          <button class="btn btn-sm btn-outline-secondary" type="button"
+                  data-bs-toggle="collapse" data-bs-target="#interest-tools"
+                  aria-expanded="true" aria-controls="interest-tools" aria-label="Minimize interests">
+            <i class="bi bi-chevron-up"></i>
+          </button>
+        </div>
       </div>
-      <div class="fw-bold {% if day.isoformat() == today_day %}text-primary{% endif %}" style="font-size:1.1rem;line-height:1.2;">
+      <div id="interest-tools" class="collapse show">
+      <form method="post" action="{{ url_for('create_interest') }}" class="mb-3">
+        <div class="row g-2">
+          <div class="col-12 col-sm-6">
+            <input name="name" class="form-control form-control-sm" placeholder="Interest name" required>
+          </div>
+          <div class="col-6 col-sm-3">
+            <select name="interest_type" class="form-select form-select-sm">
+              {% for value, label in interest_types %}
+                <option value="{{ value }}">{{ label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-6 col-sm-3">
+            <input name="default_duration" type="number" min="15" step="15" value="60" class="form-control form-control-sm">
+          </div>
+          <div class="col-12">
+            <input name="allowed_apps" class="form-control form-control-sm" placeholder="Useful apps or places">
+          </div>
+          <div class="col-12">
+            <div class="d-flex gap-1 flex-wrap">
+              {% set day_names = [('0','M'),('1','T'),('2','W'),('3','T'),('4','F'),('5','S'),('6','S')] %}
+              {% for val, label in day_names %}
+                <input type="checkbox" class="btn-check" name="preferred_days" value="{{ val }}" id="interest-day-{{ val }}">
+                <label class="btn btn-outline-primary btn-sm" for="interest-day-{{ val }}" style="width:34px;padding:.22rem 0;">{{ label }}</label>
+              {% endfor %}
+            </div>
+          </div>
+          <div class="col-12">
+            <button class="btn btn-primary btn-sm w-100">Save Interest</button>
+          </div>
+        </div>
+      </form>
+      {% if interests %}
+        <div class="d-flex flex-column gap-2">
+          {% for interest in interests %}
+            <div class="p-2 rounded bg-light">
+              <div class="d-flex justify-content-between align-items-start gap-2">
+                <div style="min-width:0;">
+                  <div class="fw-semibold">{{ interest.name }}</div>
+                  <div class="text-muted small">{{ interest.interest_type.replace('_', ' ').title() }} - {{ interest.default_duration }}m - {{ interest.days_label }}</div>
+                </div>
+                <span class="badge bg-primary bg-opacity-10 text-primary border">Interest</span>
+              </div>
+              <form method="post" action="{{ url_for('schedule_interest', id=interest.id) }}" class="row g-2 mt-2 align-items-end">
+                <div class="col-6 col-sm-3">
+                  <input type="date" name="block_date" class="form-control form-control-sm" value="{{ anchor.isoformat() }}">
+                </div>
+                <div class="col-6 col-sm-2">
+                  <input type="time" name="start_time" class="form-control form-control-sm" value="18:00">
+                </div>
+                <div class="col-6 col-sm-2">
+                  <input type="number" name="duration_minutes" class="form-control form-control-sm" min="15" step="15" value="{{ interest.default_duration }}">
+                </div>
+                <div class="col-6 col-sm-3">
+                  <select name="recurrence_type" class="form-select form-select-sm">
+                    <option value="none">Once</option>
+                    <option value="weekly">Weekly</option>
+                  </select>
+                </div>
+                <div class="col-12 col-sm-2">
+                  <button class="btn btn-outline-primary btn-sm w-100">Add</button>
+                </div>
+                <div class="col-12">
+                  <div class="d-flex gap-1 flex-wrap">
+                    {% for val, label in day_names %}
+                      <input type="checkbox" class="btn-check" name="days_of_week" value="{{ val }}" id="schedule-{{ interest.id }}-{{ val }}"
+                        {% if val|int in interest.days_of_week_list %}checked{% endif %}>
+                      <label class="btn btn-outline-secondary btn-sm" for="schedule-{{ interest.id }}-{{ val }}" style="width:32px;padding:.18rem 0;">{{ label }}</label>
+                    {% endfor %}
+                  </div>
+                </div>
+              </form>
+            </div>
+          {% endfor %}
+        </div>
+      {% else %}
+        <p class="text-muted small mb-0">No interests saved yet.</p>
+      {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <div class="col-12 col-xl-4">
+    <div class="card p-3 h-100">
+      <div class="d-flex justify-content-between align-items-center mb-3 gap-2">
+        <h6 class="mb-0">Work / School Presets</h6>
+        <button class="btn btn-sm btn-outline-secondary" type="button"
+                data-bs-toggle="collapse" data-bs-target="#work-tools"
+                aria-expanded="true" aria-controls="work-tools" aria-label="Minimize work and school presets">
+          <i class="bi bi-chevron-up"></i>
+        </button>
+      </div>
+      <div id="work-tools" class="collapse show">
+      <div class="row g-2">
+        {% set presets = [('Work Block','work','09:00','17:00'),('Class / Study','school','10:00','12:00'),('Life Admin','admin','16:00','17:00'),('Recovery','recovery','20:00','21:00')] %}
+        {% for title, category, start, end in presets %}
+          <div class="col-12 col-sm-6">
+            <form method="post" action="{{ url_for('create_block') }}" class="p-2 rounded bg-light h-100">
+              <input type="hidden" name="title" value="{{ title }}">
+              <input type="hidden" name="category" value="{{ category }}">
+              <input type="hidden" name="starts_at" value="{{ anchor.isoformat() }}T{{ start }}">
+              <input type="hidden" name="ends_at" value="{{ anchor.isoformat() }}T{{ end }}">
+              <input type="hidden" name="allowed_apps" value="">
+              <div class="d-flex align-items-center justify-content-between gap-2">
+                <div>
+                  <div class="fw-semibold small">{{ title }}</div>
+                  <div class="text-muted small">{{ start }} - {{ end }}</div>
+                </div>
+                <button class="btn btn-sm btn-outline-primary">Add</button>
+              </div>
+            </form>
+          </div>
+        {% endfor %}
+      </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-12 col-xl-4">
+    <div class="card p-3 h-100">
+      <div class="d-flex justify-content-between align-items-start mb-3 gap-2">
+        <div>
+          <h6 class="mb-0">Load Pressure</h6>
+          <div class="text-muted small">Scheduled load plus stress and capacity.</div>
+        </div>
+        <span class="badge bg-{{ day_load.color }}">{{ day_load.label }} {{ day_load.pressure }}/10</span>
+        <button class="btn btn-sm btn-outline-secondary" type="button"
+                data-bs-toggle="collapse" data-bs-target="#load-tools"
+                aria-expanded="true" aria-controls="load-tools" aria-label="Minimize load pressure">
+          <i class="bi bi-chevron-up"></i>
+        </button>
+      </div>
+      <div id="load-tools" class="collapse show">
+      <div class="row g-2 mb-3">
+        <div class="col-6"><div class="p-2 rounded bg-light small">Work <strong>{{ day_load.scheduled.work // 60 }}h {{ day_load.scheduled.work % 60 }}m</strong></div></div>
+        <div class="col-6"><div class="p-2 rounded bg-light small">School <strong>{{ day_load.scheduled.school // 60 }}h {{ day_load.scheduled.school % 60 }}m</strong></div></div>
+        <div class="col-6"><div class="p-2 rounded bg-light small">Interest <strong>{{ day_load.interest // 60 }}h {{ day_load.interest % 60 }}m</strong></div></div>
+        <div class="col-6"><div class="p-2 rounded bg-light small">Recovery <strong>{{ day_load.recovery // 60 }}h {{ day_load.recovery % 60 }}m</strong></div></div>
+      </div>
+      <form method="post" action="{{ url_for('create_load_log') }}" class="row g-2 align-items-end">
+        <input type="hidden" name="logged_for" value="{{ anchor.isoformat() }}">
+        <div class="col-6 col-sm-4">
+          <label class="form-label small text-muted">Work m</label>
+          <input name="work_minutes" type="number" min="0" step="15" class="form-control form-control-sm" value="{{ day_load.scheduled.work }}">
+        </div>
+        <div class="col-6 col-sm-4">
+          <label class="form-label small text-muted">School m</label>
+          <input name="school_minutes" type="number" min="0" step="15" class="form-control form-control-sm" value="{{ day_load.scheduled.school }}">
+        </div>
+        <div class="col-6 col-sm-4">
+          <label class="form-label small text-muted">Other m</label>
+          <input name="obligation_minutes" type="number" min="0" step="15" class="form-control form-control-sm" value="{{ day_load.scheduled.admin }}">
+        </div>
+        <div class="col-6 col-sm-4">
+          <label class="form-label small text-muted">Interests m</label>
+          <input name="interest_minutes" type="number" min="0" step="15" class="form-control form-control-sm" value="{{ day_load.interest }}">
+        </div>
+        <div class="col-6 col-sm-4">
+          <label class="form-label small text-muted">Recovery m</label>
+          <input name="recovery_minutes" type="number" min="0" step="15" class="form-control form-control-sm" value="{{ day_load.recovery }}">
+        </div>
+        <div class="col-6 col-sm-4">
+          <label class="form-label small text-muted">Stress</label>
+          <input name="stress_level" type="number" min="1" max="10" class="form-control form-control-sm" value="{{ latest_load_log.stress_level if latest_load_log else 5 }}">
+        </div>
+        <div class="col-6 col-sm-4">
+          <label class="form-label small text-muted">Capacity</label>
+          <input name="capacity_level" type="number" min="1" max="10" class="form-control form-control-sm" value="{{ latest_load_log.capacity_level if latest_load_log else 5 }}">
+        </div>
+        <div class="col-12 col-sm-8">
+          <input name="notes" class="form-control form-control-sm" placeholder="Pressure note" value="{{ latest_load_log.notes if latest_load_log else '' }}">
+        </div>
+        <div class="col-12">
+          <button class="btn btn-outline-primary btn-sm w-100">Save Load Log</button>
+        </div>
+      </form>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+<div id="calendar-grid-anchor" style="scroll-margin-top:1rem;"></div>
+
+<div id="calendar-grid" class="card overflow-hidden calendar-grid-card cal-card d-none d-md-flex" role="region" aria-label="Two day calendar grid">
+  <div class="d-flex" style="flex-shrink:0;border-bottom:1px solid rgba(24,32,29,.1);">
+    <div class="calendar-header-spacer" aria-hidden="true"></div>
+    {% for day in days %}
+    <div class="flex-grow-1 text-center py-2 calendar-header-cell"
+         style="{% if not loop.last %}border-right:1px solid rgba(24,32,29,.06);{% endif %}
+                {% if day.isoformat() == today_day %}background:rgba(29,95,74,.06);{% endif %}">
+      <div class="focus-kicker">{{ day.strftime('%A') }}</div>
+      <div class="fw-bold {% if day.isoformat() == today_day %}text-primary{% endif %}" style="font-size:1.18rem;line-height:1.2;">
         {{ day.strftime('%d') }}
         {% if day.isoformat() == today_day %}
-          <span class="badge bg-primary" style="font-size:0.55rem;vertical-align:middle;">Today</span>
+          <span class="badge bg-primary" style="font-size:.58rem;vertical-align:middle;">Today</span>
         {% endif %}
       </div>
     </div>
     {% endfor %}
   </div>
 
-  <!-- Scrollable grid -->
   <div id="cal-scroll" style="flex:1;min-height:0;overflow-y:auto;display:flex;">
-    <!-- Time gutter -->
-    <div style="width:44px;min-width:44px;flex-shrink:0;position:relative;
-                height:{{ total_height }}px;border-right:1px solid rgba(0,0,0,0.08);">
+    <div class="calendar-time-gutter" aria-hidden="true">
       {% for h in hours %}
-        <div style="position:absolute;top:{{ h * px_per_hour }}px;right:6px;
-                    font-size:0.62rem;color:rgba(0,0,0,0.3);line-height:1;
-                    transform:translateY(-50%);">
-          {% if h == 0 %}12am
-          {% elif h < 12 %}{{ h }}am
-          {% elif h == 12 %}12pm
-          {% else %}{{ h - 12 }}pm
-          {% endif %}
+        <div class="calendar-hour-label" style="--hour-top:{{ h * px_per_hour }}px;">
+          {% if h == 0 %}12am{% elif h < 12 %}{{ h }}am{% elif h == 12 %}12pm{% else %}{{ h - 12 }}pm{% endif %}
         </div>
       {% endfor %}
     </div>
-    <!-- Day columns -->
     {% for day in days %}
-    <div class="flex-grow-1" style="position:relative;height:{{ total_height }}px;min-width:0;
-         {% if not loop.last %}border-right:1px solid rgba(0,0,0,0.06);{% endif %}
-         {% if day.isoformat() == today_day %}background:rgba(13,110,253,0.015);{% endif %}">
+    <div class="flex-grow-1 calendar-day-column"
+         style="{% if not loop.last %}border-right:1px solid rgba(24,32,29,.06);{% endif %}
+                {% if day.isoformat() == today_day %}background:rgba(29,95,74,.025);{% endif %}">
       {% for h in hours %}
-        <div style="position:absolute;left:0;right:0;top:{{ h * px_per_hour }}px;
-                    border-top:1px solid rgba(0,0,0,{% if h % 3 == 0 %}0.1{% else %}0.045{% endif %});
-                    pointer-events:none;"></div>
-        <div style="position:absolute;left:0;right:0;top:{{ h * px_per_hour + px_per_hour // 2 }}px;
-                    border-top:1px dashed rgba(0,0,0,0.03);pointer-events:none;"></div>
+        <div class="calendar-grid-line" style="--line-top:{{ h * px_per_hour }}px;--line-alpha:{% if h % 3 == 0 %}.12{% else %}.055{% endif %};"></div>
+        <div class="calendar-half-line" style="--line-half-top:{{ h * px_per_hour + px_per_hour // 2 }}px;"></div>
       {% endfor %}
       {% if day.isoformat() == today_day %}
-        <div id="now-line" style="position:absolute;left:0;right:0;z-index:2;pointer-events:none;">
-          <div style="height:2px;background:rgba(220,53,69,0.7);position:relative;">
-            <div style="width:8px;height:8px;background:#dc3545;border-radius:50%;
-                        position:absolute;left:-4px;top:-3px;"></div>
-          </div>
+        <div id="now-line" class="calendar-now-line">
+          <div></div>
         </div>
       {% endif %}
       {% for item in blocks_by_day[day] %}
         {% set b = item.block %}
-        <a href="{{ url_for('block_detail', id=b.id) }}" class="text-decoration-none"
-           style="position:absolute;
-                  left:3px;right:3px;
-                  top:{{ item.top }}px;
-                  height:{{ item.height }}px;
-                  background:{% if b.score_color == 'success' %}rgba(25,135,84,0.15)
-                             {% elif b.score_color == 'warning' %}rgba(255,193,7,0.2)
-                             {% elif b.score_color == 'danger' %}rgba(220,53,69,0.13)
-                             {% else %}rgba(13,110,253,0.1){% endif %};
-                  border-left:3px solid
-                             {% if b.score_color == 'success' %}#198754
-                             {% elif b.score_color == 'warning' %}#e6a700
-                             {% elif b.score_color == 'danger' %}#dc3545
-                             {% else %}#0d6efd{% endif %};
-                  border-radius:0 4px 4px 0;
-                  padding:3px 6px;
-                  overflow:hidden;
-                  z-index:1;
-                  transition:filter .15s;">
-          <div class="fw-semibold text-dark" style="font-size:0.72rem;line-height:1.3;
-               white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+        <a href="{{ url_for('block_detail', id=b.id) }}" class="calendar-block text-decoration-none"
+           aria-label="{{ b.title }} from {{ b.starts_at.strftime('%H:%M') }} to {{ b.ends_at.strftime('%H:%M') }}, {{ (b.category or 'other').title() }}"
+           style="top:{{ item.top }}px;height:{{ item.height }}px;
+                  background:{% if b.score_color == 'success' %}rgba(47,125,91,.14){% elif b.score_color == 'warning' %}rgba(181,107,55,.16){% elif b.score_color == 'danger' %}rgba(157,63,63,.13){% else %}rgba(29,95,74,.12){% endif %};
+                  border-left:3px solid {% if b.score_color == 'success' %}#2f7d5b{% elif b.score_color == 'warning' %}#b56b37{% elif b.score_color == 'danger' %}#9d3f3f{% else %}#1d5f4a{% endif %};">
+          <div class="fw-semibold text-dark calendar-block-title">
             {{ b.title }}
           </div>
           {% if item.height > 30 %}
-          <div class="text-muted" style="font-size:0.62rem;white-space:nowrap;">
-            {{ b.starts_at.strftime('%H:%M') }}–{{ b.ends_at.strftime('%H:%M') }}
-            {% if b.adherence_score is not none %}&nbsp;·&nbsp;{{ b.adherence_score }}%{% endif %}
+          <div class="calendar-block-detail">
+            {{ b.starts_at.strftime('%H:%M') }}-{{ b.ends_at.strftime('%H:%M') }}
+            {% if b.adherence_score is not none %} - {{ b.adherence_score }}%{% endif %}
           </div>
+          {% endif %}
+          {% if item.height > 48 %}
+            <div class="calendar-block-meta">
+              {{ (b.category or 'other').title() }}{% if b.interest %} - {{ b.interest.name }}{% endif %}
+            </div>
           {% endif %}
         </a>
       {% endfor %}
@@ -148,15 +515,13 @@
   </div>
 </div>
 
-<!-- ── Mobile calendar: single-day view ─────────────────────────────── -->
-<div class="d-md-none">
+<div class="d-md-none" role="region" aria-label="Mobile calendar list">
   {% for day in days %}
-  <div class="card overflow-hidden mb-3" style="height:62vh;min-height:300px;display:flex;flex-direction:column;">
-    <!-- Day header -->
+  <div class="card overflow-hidden mb-3 cal-card">
     <div class="d-flex align-items-center px-3 py-2 border-bottom"
-         style="flex-shrink:0;{% if day.isoformat() == today_day %}background:rgba(13,110,253,0.05);{% endif %}">
+         style="flex-shrink:0;{% if day.isoformat() == today_day %}background:rgba(29,95,74,.06);{% endif %}">
       <div class="flex-grow-1">
-        <span class="text-muted small text-uppercase" style="letter-spacing:.05em;">{{ day.strftime('%A') }}</span>
+        <span class="focus-kicker">{{ day.strftime('%A') }}</span>
         <span class="fw-bold ms-2 {% if day.isoformat() == today_day %}text-primary{% endif %}">
           {{ day.strftime('%b %d') }}
         </span>
@@ -167,65 +532,42 @@
       <span class="text-muted small">{{ blocks_by_day[day]|length }} block{{ blocks_by_day[day]|length != 1 and 's' or '' }}</span>
     </div>
 
-    <!-- Scrollable time grid -->
-    <div id="cal-scroll-mob-{{ loop.index }}" style="flex:1;min-height:0;overflow-y:auto;display:flex;">
-      <!-- Time gutter -->
-      <div style="width:44px;min-width:44px;flex-shrink:0;position:relative;
-                  height:{{ total_height }}px;border-right:1px solid rgba(0,0,0,0.08);">
+    <div id="cal-scroll-mob-{{ loop.index }}" class="mobile-calendar-scroll" style="flex:1;min-height:0;overflow-y:auto;display:flex;">
+      <div class="calendar-time-gutter" aria-hidden="true">
         {% for h in hours %}
-          <div style="position:absolute;top:{{ h * px_per_hour }}px;right:4px;
-                      font-size:0.58rem;color:rgba(0,0,0,0.3);line-height:1;
-                      transform:translateY(-50%);">
-            {% if h == 0 %}12a
-            {% elif h < 12 %}{{ h }}a
-            {% elif h == 12 %}12p
-            {% else %}{{ h - 12 }}p
-            {% endif %}
+          <div class="calendar-hour-label" style="--hour-top:{{ h * px_per_hour }}px;">
+            {% if h == 0 %}12a{% elif h < 12 %}{{ h }}a{% elif h == 12 %}12p{% else %}{{ h - 12 }}p{% endif %}
           </div>
         {% endfor %}
       </div>
-      <!-- Day column -->
-      <div style="flex:1;position:relative;height:{{ total_height }}px;min-width:0;
-           {% if day.isoformat() == today_day %}background:rgba(13,110,253,0.015);{% endif %}">
+      <div style="flex:1;position:relative;height:{{ total_height }}px;min-width:0;{% if day.isoformat() == today_day %}background:rgba(29,95,74,.025);{% endif %}">
         {% for h in hours %}
-          <div style="position:absolute;left:0;right:0;top:{{ h * px_per_hour }}px;
-                      border-top:1px solid rgba(0,0,0,{% if h % 3 == 0 %}0.1{% else %}0.04{% endif %});
-                      pointer-events:none;"></div>
+          <div class="calendar-grid-line" style="--line-top:{{ h * px_per_hour }}px;--line-alpha:{% if h % 3 == 0 %}.12{% else %}.05{% endif %};"></div>
         {% endfor %}
         {% if day.isoformat() == today_day %}
-          <div id="now-line-mob" style="position:absolute;left:0;right:0;z-index:2;pointer-events:none;">
-            <div style="height:2px;background:rgba(220,53,69,0.7);position:relative;">
-              <div style="width:8px;height:8px;background:#dc3545;border-radius:50%;
-                          position:absolute;left:-4px;top:-3px;"></div>
-            </div>
+          <div id="now-line-mob" class="calendar-now-line">
+            <div></div>
           </div>
         {% endif %}
         {% for item in blocks_by_day[day] %}
           {% set b = item.block %}
-          <a href="{{ url_for('block_detail', id=b.id) }}" class="text-decoration-none"
-             style="position:absolute;
-                    left:3px;right:3px;
-                    top:{{ item.top }}px;
-                    height:{{ item.height }}px;
-                    background:{% if b.score_color == 'success' %}rgba(25,135,84,0.15)
-                               {% elif b.score_color == 'warning' %}rgba(255,193,7,0.2)
-                               {% elif b.score_color == 'danger' %}rgba(220,53,69,0.13)
-                               {% else %}rgba(13,110,253,0.1){% endif %};
-                    border-left:3px solid
-                               {% if b.score_color == 'success' %}#198754
-                               {% elif b.score_color == 'warning' %}#e6a700
-                               {% elif b.score_color == 'danger' %}#dc3545
-                               {% else %}#0d6efd{% endif %};
-                    border-radius:0 4px 4px 0;
-                    padding:3px 6px;overflow:hidden;z-index:1;">
-            <div class="fw-semibold text-dark" style="font-size:0.72rem;line-height:1.3;
-                 white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+          <a href="{{ url_for('block_detail', id=b.id) }}" class="calendar-block text-decoration-none"
+             aria-label="{{ b.title }} from {{ b.starts_at.strftime('%H:%M') }} to {{ b.ends_at.strftime('%H:%M') }}, {{ (b.category or 'other').title() }}"
+             style="top:{{ item.top }}px;height:{{ item.height }}px;
+                    background:{% if b.score_color == 'success' %}rgba(47,125,91,.14){% elif b.score_color == 'warning' %}rgba(181,107,55,.16){% elif b.score_color == 'danger' %}rgba(157,63,63,.13){% else %}rgba(29,95,74,.12){% endif %};
+                    border-left:3px solid {% if b.score_color == 'success' %}#2f7d5b{% elif b.score_color == 'warning' %}#b56b37{% elif b.score_color == 'danger' %}#9d3f3f{% else %}#1d5f4a{% endif %};">
+            <div class="fw-semibold text-dark calendar-block-title">
               {{ b.title }}
             </div>
             {% if item.height > 28 %}
-            <div class="text-muted" style="font-size:0.6rem;white-space:nowrap;">
-              {{ b.starts_at.strftime('%H:%M') }}–{{ b.ends_at.strftime('%H:%M') }}
+            <div class="calendar-block-detail">
+              {{ b.starts_at.strftime('%H:%M') }}-{{ b.ends_at.strftime('%H:%M') }}
             </div>
+            {% endif %}
+            {% if item.height > 48 %}
+              <div class="calendar-block-meta">
+                {{ (b.category or 'other').title() }}{% if b.interest %} - {{ b.interest.name }}{% endif %}
+              </div>
             {% endif %}
           </a>
         {% endfor %}
@@ -241,23 +583,41 @@
   var now = new Date();
   var topPx = (now.getHours() * 60 + now.getMinutes()) * pxPerHour / 60;
 
-  // Desktop now-line
   var line = document.getElementById("now-line");
   if (line) line.style.top = topPx + "px";
 
-  // Desktop scroll
   var scroller = document.getElementById("cal-scroll");
   if (scroller) scroller.scrollTop = Math.max(0, topPx - scroller.clientHeight / 3);
 
-  // Mobile now-line
   var lineMob = document.getElementById("now-line-mob");
   if (lineMob) lineMob.style.top = topPx + "px";
 
-  // Mobile scrollers
   for (var i = 1; i <= 2; i++) {
     var s = document.getElementById("cal-scroll-mob-" + i);
     if (s) s.scrollTop = Math.max(0, topPx - s.clientHeight / 3);
   }
+
+  function scrollCalendarToHour(hour) {
+    var target = Math.max(0, hour * pxPerHour - 48);
+    var desktop = document.getElementById("cal-scroll");
+    if (desktop && desktop.offsetParent !== null) {
+      desktop.scrollTo({ top: target, behavior: "smooth" });
+    }
+    for (var j = 1; j <= 2; j++) {
+      var mobile = document.getElementById("cal-scroll-mob-" + j);
+      if (mobile && mobile.offsetParent !== null) {
+        mobile.scrollTo({ top: target, behavior: "smooth" });
+      }
+    }
+    var grid = document.getElementById("calendar-grid-anchor");
+    if (grid) grid.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  document.querySelectorAll("[data-scroll-hour]").forEach(function(button) {
+    button.addEventListener("click", function() {
+      scrollCalendarToHour(Number(button.getAttribute("data-scroll-hour")));
+    });
+  });
 })();
 </script>
 {% endblock %}

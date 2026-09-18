@@ -1,5 +1,11 @@
 from flask import Flask, render_template, request, redirect, url_for, flash, session, make_response
-from models import db, CalendarBlock, UsageLog, JournalEntry, HealthRecord, Track, Checkpoint, Goal, Transaction, AppSetting, Bill, RecurringBlock, Asset, Debt
+from models import (
+    db, CalendarBlock, UsageLog, JournalEntry, HealthRecord, Track, Checkpoint,
+    Goal, Transaction, AppSetting, Bill, RecurringBlock, Asset, Debt,
+    LifeTaskProfile, SkillNode, PracticeSession, Mentor, MentorInteraction,
+    EmotionalTrigger, ShadowEntry, PurposeReview, Stakeholder, TrustEvent,
+    Interest, LoadLog
+)
 from datetime import datetime, date, timedelta
 from collections import defaultdict
 import os
@@ -26,8 +32,15 @@ with app.app_context():
             ("ALTER TABLE goals ADD COLUMN description TEXT DEFAULT ''", "goals description"),
             ("ALTER TABLE checkpoints ADD COLUMN is_goal BOOLEAN DEFAULT 0", "checkpoints is_goal"),
             ("ALTER TABLE tracks ADD COLUMN calendar_block_id VARCHAR(36)", "tracks calendar_block_id"),
+            ("ALTER TABLE tracks ADD COLUMN mastery_phase VARCHAR(40) DEFAULT 'calling'", "tracks mastery_phase"),
+            ("ALTER TABLE tracks ADD COLUMN life_task_link TEXT DEFAULT ''", "tracks life_task_link"),
             ("ALTER TABLE goals ADD COLUMN checkpoint_id VARCHAR(36)", "goals checkpoint_id"),
             ("ALTER TABLE goals ADD COLUMN calendar_block_id VARCHAR(36)", "goals calendar_block_id"),
+            ("ALTER TABLE checkpoints ADD COLUMN checkpoint_type VARCHAR(40) DEFAULT 'fundamental_drill'", "checkpoints checkpoint_type"),
+            ("ALTER TABLE calendar_blocks ADD COLUMN category VARCHAR(40) DEFAULT 'other'", "calendar_blocks category"),
+            ("ALTER TABLE calendar_blocks ADD COLUMN interest_id VARCHAR(36)", "calendar_blocks interest_id"),
+            ("ALTER TABLE recurring_blocks ADD COLUMN category VARCHAR(40) DEFAULT 'other'", "recurring_blocks category"),
+            ("ALTER TABLE recurring_blocks ADD COLUMN interest_id VARCHAR(36)", "recurring_blocks interest_id"),
         ]
         for migration_sql, name in migrations:
             try:
@@ -65,11 +78,269 @@ def gym_streak():
     return streak
 
 
+MASTERY_PHASES = [
+    ("calling", "Life's Task"),
+    ("apprenticeship", "Apprenticeship"),
+    ("mentor_dynamic", "Mentor Dynamic"),
+    ("social_intelligence", "Social Intelligence"),
+    ("creative_active", "Creative-Active"),
+    ("mastery", "Mastery"),
+]
+
+CHECKPOINT_TYPES = [
+    ("observation", "Observation"),
+    ("fundamental_drill", "Fundamental Drill"),
+    ("resistance_practice", "Resistance Practice"),
+    ("failure_review", "Failure Review"),
+    ("mentor_feedback", "Mentor Feedback"),
+    ("experiment", "Experiment"),
+    ("proof_artifact", "Proof Artifact"),
+    ("creative_variation", "Creative Variation"),
+]
+
+PRACTICE_MODES = [
+    ("observation", "Observation"),
+    ("deliberate_practice", "Deliberate Practice"),
+    ("resistance_practice", "Resistance Practice"),
+    ("experiment", "Experiment"),
+    ("failure_review", "Failure Review"),
+]
+
+MENTOR_TYPES = [
+    ("direct", "Direct Mentor"),
+    ("distant_model", "Distant Model"),
+    ("peer", "Peer"),
+    ("teacher", "Teacher"),
+    ("book", "Book"),
+    ("anti_model", "Anti-Model"),
+]
+
+SHADOW_THEMES = [
+    ("envy", "Envy"),
+    ("resentment", "Resentment"),
+    ("shame", "Shame"),
+    ("aggression", "Aggression"),
+    ("grandiosity", "Grandiosity"),
+    ("avoidance", "Avoidance"),
+    ("recognition_hunger", "Recognition Hunger"),
+    ("fear", "Fear"),
+]
+
+PURPOSE_STATUSES = [
+    ("advancing", "Advancing"),
+    ("drifting", "Drifting"),
+    ("performing", "Performing"),
+    ("hiding", "Hiding"),
+    ("borrowed_purpose", "Borrowed Purpose"),
+]
+
+CALENDAR_CATEGORIES = [
+    ("work", "Work"),
+    ("school", "School"),
+    ("interest", "Interest"),
+    ("mastery", "Mastery"),
+    ("health", "Health"),
+    ("recovery", "Recovery"),
+    ("admin", "Admin"),
+    ("other", "Other"),
+]
+
+INTEREST_TYPES = [
+    ("creative", "Creative"),
+    ("physical", "Physical"),
+    ("social", "Social"),
+    ("learning", "Learning"),
+    ("craft", "Craft"),
+    ("service", "Service"),
+    ("play", "Play"),
+    ("other", "Other"),
+]
+
+
+def parse_datetime_field(value):
+    if not value:
+        return None
+    return datetime.fromisoformat(value)
+
+
+def clamp_int(value, default=0, minimum=0, maximum=None):
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        parsed = default
+    parsed = max(minimum, parsed)
+    if maximum is not None:
+        parsed = min(maximum, parsed)
+    return parsed
+
+
+def scheduled_minutes_by_category(day_value):
+    blocks = CalendarBlock.query.filter(
+        db.func.date(CalendarBlock.starts_at) == day_value
+    ).all()
+    totals = {key: 0 for key, _ in CALENDAR_CATEGORIES}
+    for block in blocks:
+        category = block.category or "other"
+        if category not in totals:
+            category = "other"
+        totals[category] += int(block.duration_minutes)
+    return totals
+
+
+def load_snapshot(day_value):
+    latest_log = LoadLog.query.filter_by(logged_for=day_value).order_by(LoadLog.created_at.desc()).first()
+    scheduled = scheduled_minutes_by_category(day_value)
+    committed = scheduled.get("work", 0) + scheduled.get("school", 0) + scheduled.get("admin", 0) + scheduled.get("mastery", 0)
+    recovery = scheduled.get("recovery", 0)
+    interest = scheduled.get("interest", 0)
+    stress = latest_log.stress_level if latest_log else 5
+    capacity = latest_log.capacity_level if latest_log else 5
+    pressure = min(10, round(stress + max(0, 6 - capacity) + max(0, committed - 540) / 60 + (2 if recovery < 60 else 0)))
+    if pressure >= 8:
+        label = "Overloaded"
+        color = "danger"
+    elif pressure >= 6:
+        label = "Heavy"
+        color = "warning"
+    elif pressure >= 4:
+        label = "Manageable"
+        color = "primary"
+    else:
+        label = "Light"
+        color = "success"
+    return {
+        "log": latest_log,
+        "scheduled": scheduled,
+        "committed": committed,
+        "recovery": recovery,
+        "interest": interest,
+        "pressure": pressure,
+        "label": label,
+        "color": color,
+    }
+
+
+def today_engine(today_value=None, now_value=None):
+    today_value = today_value or date.today()
+    now_value = now_value or datetime.now()
+    load_today = load_snapshot(today_value)
+
+    active_block = CalendarBlock.query.filter(
+        CalendarBlock.starts_at <= now_value,
+        CalendarBlock.ends_at > now_value
+    ).order_by(CalendarBlock.starts_at).first()
+
+    next_block = CalendarBlock.query.filter(
+        db.func.date(CalendarBlock.starts_at) == today_value,
+        CalendarBlock.starts_at > now_value
+    ).order_by(CalendarBlock.starts_at).first()
+
+    doing_goal = Goal.query.filter_by(status="doing").order_by(Goal.created_at).first()
+    next_goal = Goal.query.filter_by(status="doing_next").order_by(Goal.created_at).first()
+
+    if active_block:
+        minutes_left = max(0, round((active_block.ends_at - now_value).total_seconds() / 60))
+        return {
+            "kind": "active_block",
+            "label": "Now",
+            "title": active_block.title,
+            "detail": f"{minutes_left} minutes left in this block.",
+            "button": "Open Block",
+            "url": url_for("block_detail", id=active_block.id),
+            "icon": "bi-play-circle",
+            "color": active_block.score_color,
+            "block": active_block,
+            "load": load_today,
+        }
+
+    if load_today["pressure"] >= 8:
+        return {
+            "kind": "overloaded",
+            "label": "Reduce Load",
+            "title": "The day is overpacked",
+            "detail": "Adjust work, school, obligations, or recovery before adding more.",
+            "button": "Review Plan",
+            "url": url_for("plan_index"),
+            "icon": "bi-speedometer2",
+            "color": "danger",
+            "load": load_today,
+        }
+
+    if next_block:
+        starts_in = max(0, round((next_block.starts_at - now_value).total_seconds() / 60))
+        return {
+            "kind": "next_block",
+            "label": "Next",
+            "title": next_block.title,
+            "detail": f"Starts in {starts_in} minutes.",
+            "button": "Prepare",
+            "url": url_for("block_detail", id=next_block.id),
+            "icon": "bi-clock",
+            "color": next_block.score_color,
+            "block": next_block,
+            "load": load_today,
+        }
+
+    if doing_goal:
+        return {
+            "kind": "doing_goal",
+            "label": "Current Goal",
+            "title": doing_goal.title,
+            "detail": "No active block is scheduled. Move the current goal forward.",
+            "button": "Open Kanban",
+            "url": url_for("kanban_index"),
+            "icon": "bi-lightning-charge",
+            "color": "primary",
+            "goal": doing_goal,
+            "load": load_today,
+        }
+
+    if now_value.hour >= 20:
+        return {
+            "kind": "reflect",
+            "label": "Close The Loop",
+            "title": "Review the day",
+            "detail": "Log stress, capture signal, and decide what needs adjusting tomorrow.",
+            "button": "Open Mind",
+            "url": url_for("mind_index"),
+            "icon": "bi-journal-text",
+            "color": "secondary",
+            "load": load_today,
+        }
+
+    if next_goal:
+        return {
+            "kind": "queued_goal",
+            "label": "Choose Focus",
+            "title": next_goal.title,
+            "detail": "This is queued. Pull it into Doing or schedule a block for it.",
+            "button": "Open Plan",
+            "url": url_for("plan_index"),
+            "icon": "bi-list-check",
+            "color": "primary",
+            "goal": next_goal,
+            "load": load_today,
+        }
+
+    return {
+        "kind": "plan_day",
+        "label": "Shape The Day",
+        "title": "Pick the next block",
+        "detail": "Start with one required block, one progress block, and one recovery block.",
+        "button": "Plan Today",
+        "url": url_for("plan_index"),
+        "icon": "bi-calendar-plus",
+        "color": "primary",
+        "load": load_today,
+    }
+
+
 # ─── Dashboard ───────────────────────────────────────────────────────────────
 
 @app.route("/")
 def dashboard():
     today = date.today()
+    now_value = datetime.now()
     today_blocks = CalendarBlock.query.filter(
         db.func.date(CalendarBlock.starts_at) == today
     ).order_by(CalendarBlock.starts_at).all()
@@ -78,6 +349,19 @@ def dashboard():
     current_tracks = Track.query.filter_by(status="current").all()
     streak = gym_streak()
     total_goals_done = Goal.query.filter_by(status="done").count()
+    life_task = LifeTaskProfile.query.order_by(LifeTaskProfile.created_at.desc()).first()
+    next_practice = PracticeSession.query.order_by(PracticeSession.recorded_at.desc()).first()
+    latest_trigger = EmotionalTrigger.query.order_by(EmotionalTrigger.created_at.desc()).first()
+    latest_purpose_review = PurposeReview.query.order_by(PurposeReview.created_at.desc()).first()
+    load_today = load_snapshot(today)
+    active_interests = Interest.query.filter_by(active=True).order_by(Interest.created_at.desc()).limit(4).all()
+    today_action = today_engine(today, now_value)
+    active_block = today_action.get("block") if today_action.get("kind") == "active_block" else None
+    next_block = CalendarBlock.query.filter(
+        db.func.date(CalendarBlock.starts_at) == today,
+        CalendarBlock.starts_at > now_value
+    ).order_by(CalendarBlock.starts_at).first()
+    doing_goals = Goal.query.filter_by(status="doing").order_by(Goal.created_at).limit(3).all()
 
     return render_template("dashboard.html",
         today_blocks=today_blocks,
@@ -85,13 +369,97 @@ def dashboard():
         current_tracks=current_tracks,
         streak=streak,
         total_goals_done=total_goals_done,
+        life_task=life_task,
+        next_practice=next_practice,
+        latest_trigger=latest_trigger,
+        latest_purpose_review=latest_purpose_review,
+        load_today=load_today,
+        active_interests=active_interests,
+        today_action=today_action,
+        active_block=active_block,
+        next_block=next_block,
+        doing_goals=doing_goals,
         today=today
+    )
+
+
+@app.route("/plan")
+def plan_index():
+    today = date.today()
+    today_blocks = CalendarBlock.query.filter(
+        db.func.date(CalendarBlock.starts_at) == today
+    ).order_by(CalendarBlock.starts_at).all()
+    load_today = load_snapshot(today)
+    interests = Interest.query.filter_by(active=True).order_by(Interest.name).limit(6).all()
+    doing = Goal.query.filter_by(status="doing").order_by(Goal.created_at).all()
+    doing_next = Goal.query.filter_by(status="doing_next").order_by(Goal.created_at).limit(5).all()
+    recurring_count = RecurringBlock.query.filter_by(active=True).count()
+    return render_template("hubs/plan.html",
+        today=today,
+        today_blocks=today_blocks,
+        load_today=load_today,
+        interests=interests,
+        doing=doing,
+        doing_next=doing_next,
+        recurring_count=recurring_count
+    )
+
+
+@app.route("/path")
+def path_index():
+    life_task = LifeTaskProfile.query.order_by(LifeTaskProfile.created_at.desc()).first()
+    current_tracks = Track.query.filter_by(status="current").order_by(Track.created_at).all()
+    recent_practice = PracticeSession.query.order_by(PracticeSession.recorded_at.desc()).limit(4).all()
+    mentors = Mentor.query.order_by(Mentor.created_at.desc()).limit(4).all()
+    total_completed = Track.query.filter_by(status="completed").count()
+    return render_template("hubs/path.html",
+        life_task=life_task,
+        current_tracks=current_tracks,
+        recent_practice=recent_practice,
+        mentors=mentors,
+        total_completed=total_completed
+    )
+
+
+@app.route("/mind")
+def mind_index():
+    today = date.today()
+    load_today = load_snapshot(today)
+    latest_trigger = EmotionalTrigger.query.order_by(EmotionalTrigger.created_at.desc()).first()
+    latest_shadow = ShadowEntry.query.order_by(ShadowEntry.created_at.desc()).first()
+    last_entry = JournalEntry.query.order_by(JournalEntry.created_at.desc()).first()
+    purpose_review = PurposeReview.query.order_by(PurposeReview.created_at.desc()).first()
+    return render_template("hubs/mind.html",
+        today=today,
+        load_today=load_today,
+        latest_trigger=latest_trigger,
+        latest_shadow=latest_shadow,
+        last_entry=last_entry,
+        purpose_review=purpose_review
+    )
+
+
+@app.route("/resources")
+def resources_index():
+    today = date.today()
+    streak = gym_streak()
+    total_assets = sum(a.amount for a in Asset.query.all())
+    total_debt = sum(d.amount for d in Debt.query.all())
+    net_worth = total_assets - total_debt
+    journal_count = JournalEntry.query.count()
+    health_count = HealthRecord.query.count()
+    return render_template("hubs/resources.html",
+        today=today,
+        streak=streak,
+        net_worth=net_worth,
+        journal_count=journal_count,
+        health_count=health_count
     )
 
 
 # ─── Calendar ────────────────────────────────────────────────────────────────
 
-PX_PER_HOUR = 48
+PX_PER_HOUR = 60
 TOTAL_HEIGHT = PX_PER_HOUR * 24
 
 
@@ -115,6 +483,8 @@ def materialize_recurring(days):
                 starts_at=starts_at,
                 ends_at=ends_at,
                 allowed_apps=r.allowed_apps,
+                category=r.category or "other",
+                interest_id=r.interest_id,
                 recurring_block_id=r.id
             )
             db.session.add(block)
@@ -158,6 +528,9 @@ def calendar_index():
     prev_day = (anchor - timedelta(days=2)).isoformat()
     next_day = (anchor + timedelta(days=2)).isoformat()
     today_day = date.today().isoformat()
+    interests = Interest.query.filter_by(active=True).order_by(Interest.name).all()
+    latest_load_log = LoadLog.query.filter_by(logged_for=anchor).order_by(LoadLog.created_at.desc()).first()
+    day_load = load_snapshot(anchor)
 
     return render_template("calendar/index.html",
         days=days,
@@ -168,7 +541,12 @@ def calendar_index():
         hours=range(24),
         total_height=TOTAL_HEIGHT,
         px_per_hour=PX_PER_HOUR,
-        anchor=anchor
+        anchor=anchor,
+        interests=interests,
+        latest_load_log=latest_load_log,
+        day_load=day_load,
+        calendar_categories=CALENDAR_CATEGORIES,
+        interest_types=INTEREST_TYPES
     )
 
 
@@ -178,17 +556,128 @@ def create_block():
     starts_at = datetime.fromisoformat(request.form["starts_at"])
     ends_at = datetime.fromisoformat(request.form["ends_at"])
     allowed_apps = request.form.get("allowed_apps", "")
-    block = CalendarBlock(title=title, starts_at=starts_at, ends_at=ends_at, allowed_apps=allowed_apps)
+    category = request.form.get("category", "other")
+    interest_id = request.form.get("interest_id") or None
+    if interest_id:
+        category = "interest"
+    block = CalendarBlock(
+        title=title, starts_at=starts_at, ends_at=ends_at,
+        allowed_apps=allowed_apps, category=category, interest_id=interest_id
+    )
     db.session.add(block)
     db.session.commit()
     flash("Block created.", "success")
     return redirect(url_for("calendar_index", day=starts_at.date().isoformat()))
 
 
+@app.route("/interests", methods=["POST"])
+def create_interest():
+    name = request.form.get("name", "").strip()
+    if not name:
+        flash("Interest name required.", "danger")
+        return redirect(request.referrer or url_for("calendar_index"))
+    preferred_days = ",".join(request.form.getlist("preferred_days"))
+    interest = Interest(
+        name=name,
+        interest_type=request.form.get("interest_type", "creative"),
+        default_duration=clamp_int(request.form.get("default_duration"), default=60, minimum=15, maximum=480),
+        preferred_days=preferred_days,
+        allowed_apps=request.form.get("allowed_apps", "").strip(),
+        notes=request.form.get("notes", "").strip()
+    )
+    db.session.add(interest)
+    db.session.commit()
+    flash(f"Interest '{interest.name}' added.", "success")
+    return redirect(request.referrer or url_for("calendar_index"))
+
+
+@app.route("/interests/<id>/schedule", methods=["POST"])
+def schedule_interest(id):
+    interest = Interest.query.get_or_404(id)
+    start_time_str = request.form.get("start_time") or "18:00"
+    duration = clamp_int(request.form.get("duration_minutes"), default=interest.default_duration or 60, minimum=15, maximum=480)
+    recurrence = request.form.get("recurrence_type", "none")
+    allowed_apps = request.form.get("allowed_apps", interest.allowed_apps or "").strip()
+
+    start_time = datetime.strptime(start_time_str, "%H:%M").time()
+    start_dt = datetime.combine(date.today(), start_time)
+    end_dt = start_dt + timedelta(minutes=duration)
+    end_time_str = end_dt.strftime("%H:%M")
+
+    if recurrence == "weekly":
+        selected = request.form.getlist("days_of_week") or [str(d) for d in interest.days_of_week_list]
+        if not selected:
+            selected = [str(date.today().weekday())]
+        r = RecurringBlock(
+            title=interest.name,
+            start_time=start_time_str,
+            end_time=end_time_str,
+            allowed_apps=allowed_apps,
+            category="interest",
+            interest_id=interest.id,
+            recurrence_type="weekly",
+            days_of_week=",".join(selected)
+        )
+        db.session.add(r)
+        db.session.commit()
+        flash(f"'{interest.name}' added as a weekly interest block.", "success")
+        return redirect(url_for("recurring_index"))
+
+    block_date = request.form.get("block_date") or date.today().isoformat()
+    starts_at = datetime.fromisoformat(f"{block_date}T{start_time_str}")
+    ends_at = starts_at + timedelta(minutes=duration)
+    block = CalendarBlock(
+        title=interest.name,
+        starts_at=starts_at,
+        ends_at=ends_at,
+        allowed_apps=allowed_apps,
+        category="interest",
+        interest_id=interest.id
+    )
+    db.session.add(block)
+    db.session.commit()
+    flash(f"'{interest.name}' added to calendar.", "success")
+    return redirect(url_for("calendar_index", day=starts_at.date().isoformat()))
+
+
+@app.route("/interests/<id>/toggle", methods=["POST"])
+def toggle_interest(id):
+    interest = Interest.query.get_or_404(id)
+    interest.active = not interest.active
+    db.session.commit()
+    flash(f"'{interest.name}' {'activated' if interest.active else 'paused'}.", "success")
+    return redirect(request.referrer or url_for("calendar_index"))
+
+
+@app.route("/load-log", methods=["POST"])
+def create_load_log():
+    logged_for = date.fromisoformat(request.form.get("logged_for") or date.today().isoformat())
+    log = LoadLog(
+        logged_for=logged_for,
+        work_minutes=clamp_int(request.form.get("work_minutes"), default=0, minimum=0, maximum=1440),
+        school_minutes=clamp_int(request.form.get("school_minutes"), default=0, minimum=0, maximum=1440),
+        obligation_minutes=clamp_int(request.form.get("obligation_minutes"), default=0, minimum=0, maximum=1440),
+        interest_minutes=clamp_int(request.form.get("interest_minutes"), default=0, minimum=0, maximum=1440),
+        recovery_minutes=clamp_int(request.form.get("recovery_minutes"), default=0, minimum=0, maximum=1440),
+        stress_level=clamp_int(request.form.get("stress_level"), default=5, minimum=1, maximum=10),
+        capacity_level=clamp_int(request.form.get("capacity_level"), default=5, minimum=1, maximum=10),
+        notes=request.form.get("notes", "").strip()
+    )
+    db.session.add(log)
+    db.session.commit()
+    flash(f"Load log saved: {log.pressure_label}.", "success")
+    return redirect(request.referrer or url_for("calendar_index", day=logged_for.isoformat()))
+
+
 @app.route("/calendar/blocks/<id>")
 def block_detail(id):
     block = CalendarBlock.query.get_or_404(id)
-    return render_template("calendar/block.html", block=block)
+    interests = Interest.query.filter_by(active=True).order_by(Interest.name).all()
+    return render_template("calendar/block.html",
+        block=block,
+        interests=interests,
+        calendar_categories=CALENDAR_CATEGORIES
+    )
 
 
 @app.route("/calendar/blocks/<id>/edit", methods=["POST"])
@@ -198,6 +687,10 @@ def edit_block(id):
     block.starts_at = datetime.fromisoformat(request.form["starts_at"])
     block.ends_at = datetime.fromisoformat(request.form["ends_at"])
     block.allowed_apps = request.form.get("allowed_apps", "")
+    block.category = request.form.get("category", block.category or "other")
+    block.interest_id = request.form.get("interest_id") or None
+    if block.interest_id:
+        block.category = "interest"
     db.session.commit()
     flash("Block updated.", "success")
     return redirect(url_for("block_detail", id=id))
@@ -237,7 +730,12 @@ def delete_block(id):
 @app.route("/calendar/recurring")
 def recurring_index():
     recurring = RecurringBlock.query.order_by(RecurringBlock.created_at.desc()).all()
-    return render_template("calendar/recurring.html", recurring=recurring)
+    interests = Interest.query.filter_by(active=True).order_by(Interest.name).all()
+    return render_template("calendar/recurring.html",
+        recurring=recurring,
+        interests=interests,
+        calendar_categories=CALENDAR_CATEGORIES
+    )
 
 
 @app.route("/calendar/recurring", methods=["POST"])
@@ -246,6 +744,10 @@ def create_recurring():
     start_time = request.form["start_time"]
     end_time = request.form["end_time"]
     allowed_apps = request.form.get("allowed_apps", "")
+    category = request.form.get("category", "other")
+    interest_id = request.form.get("interest_id") or None
+    if interest_id:
+        category = "interest"
     recurrence_type = request.form["recurrence_type"]
 
     days_of_week = ""
@@ -261,7 +763,8 @@ def create_recurring():
 
     r = RecurringBlock(
         title=title, start_time=start_time, end_time=end_time,
-        allowed_apps=allowed_apps, recurrence_type=recurrence_type,
+        allowed_apps=allowed_apps, category=category, interest_id=interest_id,
+        recurrence_type=recurrence_type,
         days_of_week=days_of_week, day_of_month=day_of_month
     )
     db.session.add(r)
@@ -752,6 +1255,93 @@ def delete_debt(id):
 
 # ─── Tracks ──────────────────────────────────────────────────────────────────
 
+# ─── Mastery / Self-Command ─────────────────────────────────────────────────
+
+@app.route("/mastery")
+def mastery_index():
+    profile = LifeTaskProfile.query.order_by(LifeTaskProfile.created_at.desc()).first()
+    current_tracks = Track.query.filter_by(status="current").order_by(Track.created_at.desc()).all()
+    recent_practice = PracticeSession.query.order_by(PracticeSession.recorded_at.desc()).limit(8).all()
+    mentors = Mentor.query.order_by(Mentor.created_at.desc()).limit(8).all()
+    purpose_reviews = PurposeReview.query.order_by(PurposeReview.created_at.desc()).limit(5).all()
+    return render_template("mastery/index.html",
+        profile=profile,
+        current_tracks=current_tracks,
+        recent_practice=recent_practice,
+        mentors=mentors,
+        purpose_reviews=purpose_reviews,
+        mastery_phases=MASTERY_PHASES
+    )
+
+
+@app.route("/mastery/profile", methods=["POST"])
+def save_life_task_profile():
+    profile = LifeTaskProfile.query.order_by(LifeTaskProfile.created_at.desc()).first()
+    if not profile:
+        profile = LifeTaskProfile()
+        db.session.add(profile)
+    profile.primal_inclinations = request.form.get("primal_inclinations", "").strip()
+    profile.admired_models = request.form.get("admired_models", "").strip()
+    profile.false_paths = request.form.get("false_paths", "").strip()
+    profile.current_hypothesis = request.form.get("current_hypothesis", "").strip()
+    profile.confidence = int(request.form.get("confidence", 5))
+    profile.last_reviewed_at = datetime.utcnow()
+    db.session.commit()
+    flash("Life's Task profile saved.", "success")
+    return redirect(url_for("mastery_index"))
+
+
+@app.route("/self-command")
+def self_command_index():
+    triggers = EmotionalTrigger.query.order_by(EmotionalTrigger.created_at.desc()).limit(20).all()
+    shadow_entries = ShadowEntry.query.order_by(ShadowEntry.created_at.desc()).limit(20).all()
+    stakeholders = Stakeholder.query.order_by(Stakeholder.created_at.desc()).limit(20).all()
+    purpose_reviews = PurposeReview.query.order_by(PurposeReview.created_at.desc()).limit(10).all()
+    all_tracks = Track.query.order_by(Track.title).all()
+    return render_template("self_command/index.html",
+        triggers=triggers,
+        shadow_entries=shadow_entries,
+        stakeholders=stakeholders,
+        purpose_reviews=purpose_reviews,
+        all_tracks=all_tracks,
+        shadow_themes=SHADOW_THEMES,
+        purpose_statuses=PURPOSE_STATUSES
+    )
+
+
+@app.route("/self-command/triggers", methods=["POST"])
+def create_emotional_trigger():
+    trigger = EmotionalTrigger(
+        trigger_context=request.form.get("trigger_context", "").strip(),
+        emotion=request.form.get("emotion", "").strip(),
+        body_state=request.form.get("body_state", "").strip(),
+        bias_markers=request.form.get("bias_markers", "").strip(),
+        chosen_response=request.form.get("chosen_response", "").strip(),
+        outcome=request.form.get("outcome", "").strip()
+    )
+    db.session.add(trigger)
+    db.session.commit()
+    flash("Emotional trigger logged.", "success")
+    return redirect(url_for("self_command_index"))
+
+
+@app.route("/self-command/shadow", methods=["POST"])
+def create_shadow_entry():
+    body = request.form.get("body", "").strip()
+    if not body:
+        flash("Shadow entry cannot be empty.", "danger")
+        return redirect(url_for("self_command_index"))
+    entry = ShadowEntry(
+        body=body,
+        theme=request.form.get("theme", "avoidance"),
+        integration_plan=request.form.get("integration_plan", "").strip()
+    )
+    db.session.add(entry)
+    db.session.commit()
+    flash("Shadow entry saved privately in the local database.", "success")
+    return redirect(url_for("self_command_index"))
+
+
 @app.route("/tracks")
 def tracks_index():
     library = Track.query.filter_by(status="library").order_by(Track.created_at.desc()).all()
@@ -773,7 +1363,13 @@ def create_track():
         flash("Title required.", "danger")
         return redirect(url_for("tracks_index"))
     calendar_block_id = request.form.get("calendar_block_id") or None
-    track = Track(title=title, status="library", calendar_block_id=calendar_block_id)
+    track = Track(
+        title=title,
+        status="library",
+        calendar_block_id=calendar_block_id,
+        mastery_phase=request.form.get("mastery_phase", "calling"),
+        life_task_link=request.form.get("life_task_link", "").strip()
+    )
     db.session.add(track)
     db.session.commit()
     flash("Track created.", "success")
@@ -785,7 +1381,17 @@ def track_detail(id):
     track = Track.query.get_or_404(id)
     current_count = Track.query.filter_by(status="current").count()
     all_tracks = Track.query.order_by(Track.title).all()
-    return render_template("tracks/track.html", track=track, current_count=current_count, all_tracks=all_tracks, today=date.today())
+    return render_template("tracks/track.html",
+        track=track,
+        current_count=current_count,
+        all_tracks=all_tracks,
+        today=date.today(),
+        mastery_phases=MASTERY_PHASES,
+        checkpoint_types=CHECKPOINT_TYPES,
+        practice_modes=PRACTICE_MODES,
+        mentor_types=MENTOR_TYPES,
+        purpose_statuses=PURPOSE_STATUSES
+    )
 
 
 @app.route("/tracks/<id>/status", methods=["POST"])
@@ -806,6 +1412,16 @@ def change_track_status(id):
     db.session.commit()
     flash(f"Track moved to {new_status}.", "success")
     return redirect(url_for("tracks_index"))
+
+
+@app.route("/tracks/<id>/mastery", methods=["POST"])
+def update_track_mastery(id):
+    track = Track.query.get_or_404(id)
+    track.mastery_phase = request.form.get("mastery_phase", track.mastery_phase)
+    track.life_task_link = request.form.get("life_task_link", "").strip()
+    db.session.commit()
+    flash("Mastery context updated.", "success")
+    return redirect(url_for("track_detail", id=id))
 
 
 @app.route("/tracks/<id>/complete", methods=["POST"])
@@ -835,7 +1451,13 @@ def add_checkpoint(id):
     description = request.form.get("description", "")
     target_date_str = request.form.get("target_date", "")
     target_date = date.fromisoformat(target_date_str) if target_date_str else None
-    cp = Checkpoint(track_id=id, title=title, description=description, target_date=target_date)
+    cp = Checkpoint(
+        track_id=id,
+        title=title,
+        description=description,
+        checkpoint_type=request.form.get("checkpoint_type", "fundamental_drill"),
+        target_date=target_date
+    )
     db.session.add(cp)
     db.session.commit()
     flash("Checkpoint added.", "success")
@@ -865,6 +1487,7 @@ def edit_checkpoint(track_id, cp_id):
     cp = Checkpoint.query.get_or_404(cp_id)
     cp.title = request.form["title"].strip()
     cp.description = request.form.get("description", "")
+    cp.checkpoint_type = request.form.get("checkpoint_type", cp.checkpoint_type)
     target_date_str = request.form.get("target_date", "")
     cp.target_date = date.fromisoformat(target_date_str) if target_date_str else None
     db.session.commit()
@@ -963,6 +1586,142 @@ def dequip_checkpoint_as_goal(track_id, cp_id):
 
 
 # ─── Goals ───────────────────────────────────────────────────────────────────
+
+@app.route("/tracks/<id>/skill-nodes", methods=["POST"])
+def create_skill_node(id):
+    track = Track.query.get_or_404(id)
+    title = request.form.get("title", "").strip()
+    if not title:
+        flash("Skill title required.", "danger")
+        return redirect(url_for("track_detail", id=id))
+    node = SkillNode(
+        track_id=track.id,
+        title=title,
+        node_type=request.form.get("node_type", "fundamental"),
+        target_reps=int(request.form.get("target_reps", 1) or 1),
+        completed_reps=int(request.form.get("completed_reps", 0) or 0),
+        feedback_source=request.form.get("feedback_source", "").strip()
+    )
+    db.session.add(node)
+    db.session.commit()
+    flash("Skill node added.", "success")
+    return redirect(url_for("track_detail", id=id))
+
+
+@app.route("/tracks/<id>/practice-sessions", methods=["POST"])
+def create_practice_session(id):
+    track = Track.query.get_or_404(id)
+    skill_node_id = request.form.get("skill_node_id") or None
+    session_record = PracticeSession(
+        track_id=track.id,
+        skill_node_id=skill_node_id,
+        mode=request.form.get("mode", "deliberate_practice"),
+        notes=request.form.get("notes", "").strip(),
+        difficulty=int(request.form.get("difficulty", 5) or 5),
+        feedback=request.form.get("feedback", "").strip(),
+        recorded_at=parse_datetime_field(request.form.get("recorded_at")) or datetime.utcnow()
+    )
+    db.session.add(session_record)
+    if skill_node_id:
+        node = SkillNode.query.get(skill_node_id)
+        if node:
+            node.completed_reps = min((node.completed_reps or 0) + 1, node.target_reps or 1)
+    db.session.commit()
+    flash("Practice session logged.", "success")
+    return redirect(url_for("track_detail", id=id))
+
+
+@app.route("/tracks/<id>/mentors", methods=["POST"])
+def create_mentor(id):
+    track = Track.query.get_or_404(id)
+    name = request.form.get("name", "").strip()
+    if not name:
+        flash("Mentor/model name required.", "danger")
+        return redirect(url_for("track_detail", id=id))
+    mentor = Mentor(
+        track_id=track.id,
+        name=name,
+        mentor_type=request.form.get("mentor_type", "distant_model"),
+        strengths_to_absorb=request.form.get("strengths_to_absorb", "").strip(),
+        risks_or_limits=request.form.get("risks_or_limits", "").strip()
+    )
+    db.session.add(mentor)
+    db.session.commit()
+    flash("Mentor/model added.", "success")
+    return redirect(url_for("track_detail", id=id))
+
+
+@app.route("/mentors/<id>/interactions", methods=["POST"])
+def create_mentor_interaction(id):
+    mentor = Mentor.query.get_or_404(id)
+    interaction = MentorInteraction(
+        mentor_id=mentor.id,
+        question=request.form.get("question", "").strip(),
+        feedback=request.form.get("feedback", "").strip(),
+        action_taken=request.form.get("action_taken", "").strip(),
+        follow_up_at=parse_datetime_field(request.form.get("follow_up_at"))
+    )
+    db.session.add(interaction)
+    db.session.commit()
+    flash("Mentor interaction logged.", "success")
+    return redirect(url_for("track_detail", id=mentor.track_id) if mentor.track_id else url_for("mastery_index"))
+
+
+@app.route("/tracks/<id>/purpose-reviews", methods=["POST"])
+def create_purpose_review(id):
+    track = Track.query.get_or_404(id)
+    today_value = date.today()
+    review = PurposeReview(
+        track_id=track.id,
+        period_start=date.fromisoformat(request.form.get("period_start")) if request.form.get("period_start") else today_value,
+        period_end=date.fromisoformat(request.form.get("period_end")) if request.form.get("period_end") else today_value,
+        status=request.form.get("status", "advancing"),
+        evidence=request.form.get("evidence", "").strip(),
+        next_adjustment=request.form.get("next_adjustment", "").strip()
+    )
+    db.session.add(review)
+    db.session.commit()
+    flash("Purpose review saved.", "success")
+    return redirect(url_for("track_detail", id=id))
+
+
+@app.route("/tracks/<id>/stakeholders", methods=["POST"])
+def create_stakeholder(id):
+    track = Track.query.get_or_404(id)
+    name = request.form.get("name", "").strip()
+    if not name:
+        flash("Stakeholder name required.", "danger")
+        return redirect(url_for("track_detail", id=id))
+    stakeholder = Stakeholder(
+        track_id=track.id,
+        name=name,
+        role=request.form.get("role", "").strip(),
+        wants=request.form.get("wants", "").strip(),
+        fears=request.form.get("fears", "").strip(),
+        trust_level=int(request.form.get("trust_level", 5) or 5),
+        communication_cadence=request.form.get("communication_cadence", "").strip()
+    )
+    db.session.add(stakeholder)
+    db.session.commit()
+    flash("Stakeholder added.", "success")
+    return redirect(url_for("track_detail", id=id))
+
+
+@app.route("/stakeholders/<id>/trust-events", methods=["POST"])
+def create_trust_event(id):
+    stakeholder = Stakeholder.query.get_or_404(id)
+    event = TrustEvent(
+        stakeholder_id=stakeholder.id,
+        promise=request.form.get("promise", "").strip(),
+        status=request.form.get("status", "made"),
+        evidence=request.form.get("evidence", "").strip(),
+        occurred_at=parse_datetime_field(request.form.get("occurred_at")) or datetime.utcnow()
+    )
+    db.session.add(event)
+    db.session.commit()
+    flash("Trust event logged.", "success")
+    return redirect(url_for("track_detail", id=stakeholder.track_id) if stakeholder.track_id else url_for("self_command_index"))
+
 
 @app.route("/goals", methods=["POST"])
 def create_goal():
@@ -1132,6 +1891,9 @@ def progress_index():
     total_goals_done = len(done_goals)
     total_entries = JournalEntry.query.count()
     streak = gym_streak()
+    total_practice = PracticeSession.query.count()
+    total_mentors = Mentor.query.count()
+    total_triggers = EmotionalTrigger.query.count()
 
     return render_template("progress/index.html",
         all_tracks=all_tracks,
@@ -1139,7 +1901,10 @@ def progress_index():
         done_goals=done_goals,
         total_goals_done=total_goals_done,
         total_entries=total_entries,
-        streak=streak
+        streak=streak,
+        total_practice=total_practice,
+        total_mentors=total_mentors,
+        total_triggers=total_triggers
     )
 
 

@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block title %} - Mind{% endblock %}
+{% block content %}
+<div class="focus-page-title">
+  <div>
+    <div class="focus-kicker">{{ today.strftime('%A, %B %d') }}</div>
+    <h2 class="focus-display mb-0">Mind</h2>
+  </div>
+  <a href="{{ url_for('self_command_index') }}" class="btn btn-sm btn-primary">
+    <i class="bi bi-shield-check me-1"></i>Self Command
+  </a>
+</div>
+
+<div class="row g-3">
+  <div class="col-12 col-xl-7">
+    <div class="card p-4 h-100">
+      <div class="d-flex justify-content-between align-items-start gap-2 mb-3">
+        <div>
+          <h4 class="mb-1">State Check</h4>
+          <div class="text-muted small">Use this when pressure, emotion, or avoidance starts steering.</div>
+        </div>
+        <span class="badge bg-{{ load_today.color }}">{{ load_today.label }} {{ load_today.pressure }}/10</span>
+      </div>
+      {% if latest_trigger %}
+        <div class="focus-kicker mb-1">Latest trigger</div>
+        <h5>{{ latest_trigger.emotion or 'Unlabeled emotion' }}</h5>
+        <p class="mb-0">{{ latest_trigger.trigger_context[:260] }}{% if latest_trigger.trigger_context|length > 260 %}...{% endif %}</p>
+      {% elif purpose_review %}
+        <div class="focus-kicker mb-1">Latest purpose review</div>
+        <h5>{{ purpose_review.status.replace('_', ' ').title() }}</h5>
+        <p class="mb-0">{{ purpose_review.next_adjustment }}</p>
+      {% else %}
+        <p class="text-muted mb-0">No mind signals logged yet.</p>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="col-12 col-xl-5">
+    <div class="card p-3 h-100">
+      <h5 class="mb-3">Recent Reflection</h5>
+      {% if last_entry %}
+        <div class="text-muted small mb-2">{{ last_entry.created_at.strftime('%B %d, %Y at %H:%M') }}</div>
+        {% if last_entry.stress_level %}
+          <span class="badge bg-secondary mb-2">Stress {{ last_entry.stress_level }}/10</span>
+        {% endif %}
+        <p class="mb-0" style="white-space:pre-wrap;">{{ last_entry.body[:360] }}{% if last_entry.body|length > 360 %}...{% endif %}</p>
+      {% else %}
+        <p class="text-muted mb-0">No journal entries yet.</p>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="col-12 col-xl-4">
+    <a href="{{ url_for('self_command_index') }}" class="hub-card card p-3 text-decoration-none h-100">
+      <i class="bi bi-shield-check"></i>
+      <h5>Self Command</h5>
+      <p>Triggers, shadow work, stakeholders, and trust signals.</p>
+    </a>
+  </div>
+  <div class="col-12 col-xl-4">
+    <a href="{{ url_for('journal_index') }}" class="hub-card card p-3 text-decoration-none h-100">
+      <i class="bi bi-journal-text"></i>
+      <h5>Journal</h5>
+      <p>Private reflection, stress entries, and searchable signal history.</p>
+    </a>
+  </div>
+  <div class="col-12 col-xl-4">
+    <a href="{{ url_for('calendar_index') }}" class="hub-card card p-3 text-decoration-none h-100">
+      <i class="bi bi-speedometer2"></i>
+      <h5>Load Pressure</h5>
+      <p>Adjust work, school, interests, recovery, and obligations.</p>
+    </a>
+  </div>
+</div>
+{% endblock %}

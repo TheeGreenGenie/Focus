@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% block title %} - Plan{% endblock %}
+{% block content %}
+<div class="focus-page-title">
+  <div>
+    <div class="focus-kicker">{{ today.strftime('%A, %B %d') }}</div>
+    <h2 class="focus-display mb-0">Plan</h2>
+  </div>
+  <a href="{{ url_for('calendar_index') }}" class="btn btn-sm btn-primary">
+    <i class="bi bi-calendar-plus me-1"></i>Open Calendar
+  </a>
+</div>
+
+<div class="row g-3">
+  <div class="col-12 col-xl-7">
+    <div class="card p-4 h-100">
+      <div class="d-flex justify-content-between align-items-start gap-2 mb-3">
+        <div>
+          <h4 class="mb-1">Shape Today</h4>
+          <div class="text-muted small">Required time, progress time, recovery time.</div>
+        </div>
+        <span class="badge bg-{{ load_today.color }}">{{ load_today.label }} {{ load_today.pressure }}/10</span>
+      </div>
+      <div class="row g-2 mb-3">
+        <div class="col-6 col-md-3"><div class="p-2 rounded bg-light small">Work <strong>{{ load_today.scheduled.work // 60 }}h {{ load_today.scheduled.work % 60 }}m</strong></div></div>
+        <div class="col-6 col-md-3"><div class="p-2 rounded bg-light small">School <strong>{{ load_today.scheduled.school // 60 }}h {{ load_today.scheduled.school % 60 }}m</strong></div></div>
+        <div class="col-6 col-md-3"><div class="p-2 rounded bg-light small">Interest <strong>{{ load_today.interest // 60 }}h {{ load_today.interest % 60 }}m</strong></div></div>
+        <div class="col-6 col-md-3"><div class="p-2 rounded bg-light small">Recovery <strong>{{ load_today.recovery // 60 }}h {{ load_today.recovery % 60 }}m</strong></div></div>
+      </div>
+      <div class="d-flex gap-2 flex-wrap">
+        <a href="{{ url_for('calendar_index') }}" class="btn btn-primary">Build Blocks</a>
+        <a href="{{ url_for('recurring_index') }}" class="btn btn-outline-primary">Recurring</a>
+        <a href="{{ url_for('kanban_index') }}" class="btn btn-outline-secondary">Kanban</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-12 col-xl-5">
+    <div class="card p-3 h-100">
+      <h5 class="mb-3">Current Queue</h5>
+      {% if doing %}
+        <div class="focus-kicker mb-2">Doing</div>
+        {% for goal in doing %}
+          <div class="p-2 rounded bg-light mb-2">
+            <div class="fw-semibold">{{ goal.title }}</div>
+            {% if goal.track %}<div class="text-muted small">{{ goal.track.title }}</div>{% endif %}
+          </div>
+        {% endfor %}
+      {% endif %}
+      {% if doing_next %}
+        <div class="focus-kicker mb-2 mt-3">Queued</div>
+        {% for goal in doing_next %}
+          <div class="p-2 rounded bg-light mb-2">
+            <div class="fw-semibold">{{ goal.title }}</div>
+          </div>
+        {% endfor %}
+      {% elif not doing %}
+        <p class="text-muted mb-0">No goal queue yet. Add one from Kanban or Tracks.</p>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="col-12 col-xl-4">
+    <a href="{{ url_for('calendar_index') }}" class="hub-card card p-3 text-decoration-none h-100">
+      <i class="bi bi-calendar3"></i>
+      <h5>Calendar</h5>
+      <p>{{ today_blocks|length }} block{{ today_blocks|length != 1 and 's' or '' }} today.</p>
+    </a>
+  </div>
+  <div class="col-12 col-xl-4">
+    <a href="{{ url_for('recurring_index') }}" class="hub-card card p-3 text-decoration-none h-100">
+      <i class="bi bi-arrow-repeat"></i>
+      <h5>Recurring Blocks</h5>
+      <p>{{ recurring_count }} active rhythm{{ recurring_count != 1 and 's' or '' }}.</p>
+    </a>
+  </div>
+  <div class="col-12 col-xl-4">
+    <a href="{{ url_for('kanban_index') }}" class="hub-card card p-3 text-decoration-none h-100">
+      <i class="bi bi-kanban"></i>
+      <h5>Execution Queue</h5>
+      <p>{{ doing|length }}/3 items in Doing.</p>
+    </a>
+  </div>
+</div>
+{% endblock %}

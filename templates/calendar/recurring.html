@@ -1,23 +1,43 @@
 {% extends "base.html" %}
-{% block title %} — Recurring Events{% endblock %}
+{% block title %} - Recurring Events{% endblock %}
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-4">
+<div class="focus-page-title">
   <div>
-    <a href="{{ url_for('calendar_index') }}" class="text-muted small"><i class="bi bi-arrow-left"></i> Calendar</a>
-    <h2 class="mb-0 mt-1">Recurring Events</h2>
+    <a href="{{ url_for('calendar_index') }}" class="text-muted small text-decoration-none">
+      <i class="bi bi-arrow-left"></i> Calendar
+    </a>
+    <h2 class="focus-display mb-0">Recurring Events</h2>
   </div>
 </div>
 
 <div class="row g-3">
-  <!-- Create form -->
   <div class="col-md-4">
     <div class="card p-3">
       <h6 class="mb-3">New Recurring Block</h6>
       <form method="post" action="{{ url_for('create_recurring') }}" id="recurring-form">
-
         <div class="mb-2">
           <label class="form-label small text-muted">Title</label>
-          <input type="text" name="title" class="form-control form-control-sm" placeholder="e.g. Morning Run" required>
+          <input type="text" name="title" class="form-control form-control-sm" placeholder="Morning Run" required>
+        </div>
+
+        <div class="row g-2 mb-2">
+          <div class="col-6">
+            <label class="form-label small text-muted">Category</label>
+            <select name="category" class="form-select form-select-sm">
+              {% for value, label in calendar_categories %}
+                <option value="{{ value }}">{{ label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-6">
+            <label class="form-label small text-muted">Interest</label>
+            <select name="interest_id" class="form-select form-select-sm">
+              <option value="">No interest</option>
+              {% for interest in interests %}
+                <option value="{{ interest.id }}">{{ interest.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
         </div>
 
         <div class="row g-2 mb-2">
@@ -32,13 +52,13 @@
         </div>
 
         <div class="mb-3">
-          <label class="form-label small text-muted">Allowed apps (comma-separated)</label>
-          <input type="text" name="allowed_apps" class="form-control form-control-sm" placeholder="e.g. notion, vscode">
+          <label class="form-label small text-muted">Allowed apps</label>
+          <input type="text" name="allowed_apps" class="form-control form-control-sm" placeholder="notion, vscode">
         </div>
 
         <div class="mb-3">
           <label class="form-label small text-muted">Recurrence</label>
-          <div class="d-flex gap-2">
+          <div class="d-flex gap-2 flex-wrap">
             <div class="form-check">
               <input class="form-check-input" type="radio" name="recurrence_type" value="daily"
                 id="r-daily" onchange="showRecurrence('daily')">
@@ -57,28 +77,20 @@
           </div>
         </div>
 
-        <!-- Weekly day picker -->
         <div id="weekly-picker" class="mb-3">
           <label class="form-label small text-muted">Days of week</label>
           <div class="d-flex gap-1 flex-wrap">
             {% set day_names = [('0','M'),('1','T'),('2','W'),('3','T'),('4','F'),('5','S'),('6','S')] %}
             {% for val, label in day_names %}
-              <div>
-                <input type="checkbox" class="btn-check" name="days_of_week"
-                  value="{{ val }}" id="dow-{{ val }}">
-                <label class="btn btn-outline-primary btn-sm" for="dow-{{ val }}"
-                  style="width:36px;padding:.25rem 0;">{{ label }}</label>
-              </div>
+              <input type="checkbox" class="btn-check" name="days_of_week" value="{{ val }}" id="dow-{{ val }}">
+              <label class="btn btn-outline-primary btn-sm" for="dow-{{ val }}" style="width:36px;padding:.25rem 0;">{{ label }}</label>
             {% endfor %}
           </div>
-          <div class="text-muted mt-1" style="font-size:.68rem;">M T W T F S S</div>
         </div>
 
-        <!-- Monthly day picker -->
         <div id="monthly-picker" class="mb-3" style="display:none;">
           <label class="form-label small text-muted">Day of month</label>
-          <input type="number" name="day_of_month" class="form-control form-control-sm"
-            min="1" max="31" placeholder="e.g. 1 for 1st of each month">
+          <input type="number" name="day_of_month" class="form-control form-control-sm" min="1" max="31" placeholder="1">
         </div>
 
         <button class="btn btn-primary btn-sm w-100">Create Recurring Block</button>
@@ -86,33 +98,32 @@
     </div>
   </div>
 
-  <!-- Existing recurring blocks -->
   <div class="col-md-8">
     <div class="card p-3">
-      <h6 class="mb-3">Active & Paused Blocks</h6>
+      <h6 class="mb-3">Active &amp; Paused Blocks</h6>
       {% if recurring %}
         {% for r in recurring %}
-          <div class="d-flex align-items-start p-3 mb-2 rounded
-               {% if r.active %}bg-light{% else %}bg-light opacity-50{% endif %}">
-            <div class="flex-grow-1">
-              <div class="d-flex align-items-center gap-2 mb-1">
+          <div class="d-flex align-items-start p-3 mb-2 rounded {% if r.active %}bg-light{% else %}bg-light opacity-50{% endif %}">
+            <div class="flex-grow-1" style="min-width:0;">
+              <div class="d-flex align-items-center gap-2 mb-1 flex-wrap">
                 <span class="fw-semibold">{{ r.title }}</span>
                 {% if r.active %}
-                  <span class="badge bg-success" style="font-size:.65rem;">Active</span>
+                  <span class="badge bg-success">Active</span>
                 {% else %}
-                  <span class="badge bg-secondary" style="font-size:.65rem;">Paused</span>
+                  <span class="badge bg-secondary">Paused</span>
                 {% endif %}
-                <span class="badge bg-primary" style="font-size:.65rem;">{{ r.recurrence_type }}</span>
+                <span class="badge bg-primary">{{ r.recurrence_type }}</span>
+                <span class="badge bg-light text-dark border">{{ (r.category or 'other').title() }}</span>
+                {% if r.interest %}
+                  <span class="badge bg-primary bg-opacity-10 text-primary border">{{ r.interest.name }}</span>
+                {% endif %}
               </div>
               <div class="text-muted small mb-1">
-                <i class="bi bi-clock me-1"></i>{{ r.start_time }} – {{ r.end_time }}
-                &nbsp;·&nbsp;
-                <i class="bi bi-calendar3 me-1"></i>{{ r.days_label }}
+                <i class="bi bi-clock me-1"></i>{{ r.start_time }} - {{ r.end_time }}
+                <i class="bi bi-calendar3 ms-2 me-1"></i>{{ r.days_label }}
               </div>
               {% if r.allowed_apps %}
-                <div class="text-muted small">
-                  <i class="bi bi-shield-check me-1"></i>{{ r.allowed_apps }}
-                </div>
+                <div class="text-muted small"><i class="bi bi-shield-check me-1"></i>{{ r.allowed_apps }}</div>
               {% endif %}
             </div>
             <div class="d-flex gap-2 ms-3">
@@ -137,10 +148,9 @@
 
 <script>
 function showRecurrence(type) {
-  document.getElementById("weekly-picker").style.display  = type === "weekly"  ? "" : "none";
+  document.getElementById("weekly-picker").style.display = type === "weekly" ? "" : "none";
   document.getElementById("monthly-picker").style.display = type === "monthly" ? "" : "none";
 }
-// Set initial state
 showRecurrence("weekly");
 </script>
 {% endblock %}

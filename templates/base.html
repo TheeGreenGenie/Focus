@@ -10,8 +10,12 @@
   {% block page_style %}{% endblock %}
 </head>
 <body>
+{% set endpoint = request.endpoint or '' %}
+{% set plan_active = endpoint in ['plan_index','calendar_index','block_detail','recurring_index','kanban_index'] %}
+{% set path_active = endpoint in ['path_index','mastery_index','tracks_index','track_detail','progress_index'] or 'track' in endpoint or 'mastery' in endpoint %}
+{% set mind_active = endpoint in ['mind_index','self_command_index','journal_index','edit_entry'] or 'self_command' in endpoint or 'emotional_trigger' in endpoint or 'shadow' in endpoint or 'journal' in endpoint %}
+{% set resources_active = endpoint in ['resources_index','health_index','finance_index'] or 'health' in endpoint or 'finance' in endpoint %}
 
-<!-- ── Mobile top-bar (hidden on md+) ──────────────────────────────── -->
 <header class="mobile-topbar d-md-none">
   <button class="hamburger-btn" type="button"
           data-bs-toggle="offcanvas" data-bs-target="#mobile-nav"
@@ -19,103 +23,74 @@
     <i class="bi bi-list"></i>
   </button>
   <span class="brand-text">Focus</span>
+  <span class="badge bg-light text-dark">Life OS</span>
 </header>
 
-<!-- ── Mobile offcanvas navigation drawer ──────────────────────────── -->
-<div class="offcanvas offcanvas-start"
-     tabindex="-1" id="mobile-nav"
-     style="width:270px;background:#1a1a2e;"
-     aria-labelledby="mobile-nav-label">
-  <div class="offcanvas-header" style="border-bottom:1px solid rgba(255,255,255,.1);">
+<nav class="tablet-topbar" aria-label="Tablet navigation">
+  <div class="tablet-topbar-inner">
+    <span class="tablet-brand">Focus</span>
+    <a href="{{ url_for('dashboard') }}" class="nav-link {% if request.endpoint == 'dashboard' %}active{% endif %}">
+      <i class="bi bi-bullseye"></i> Today
+    </a>
+    <a href="{{ url_for('plan_index') }}" class="nav-link {% if plan_active %}active{% endif %}">
+      <i class="bi bi-calendar3"></i> Plan
+    </a>
+    <a href="{{ url_for('path_index') }}" class="nav-link {% if path_active %}active{% endif %}">
+      <i class="bi bi-compass"></i> Path
+    </a>
+    <a href="{{ url_for('mind_index') }}" class="nav-link {% if mind_active %}active{% endif %}">
+      <i class="bi bi-shield-check"></i> Mind
+    </a>
+    <a href="{{ url_for('resources_index') }}" class="nav-link {% if resources_active %}active{% endif %}">
+      <i class="bi bi-grid"></i> Resources
+    </a>
+  </div>
+</nav>
+
+<div class="offcanvas offcanvas-start" tabindex="-1" id="mobile-nav" aria-labelledby="mobile-nav-label">
+  <div class="offcanvas-header">
     <span class="offcanvas-title text-white fw-bold fs-5" id="mobile-nav-label">Focus</span>
     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="offcanvas" aria-label="Close"></button>
   </div>
   <div class="offcanvas-body p-2 offcanvas-nav">
-    <a href="{{ url_for('dashboard') }}"
-       class="nav-link mb-1 {% if request.endpoint == 'dashboard' %}active{% endif %}">
-      <i class="bi bi-house"></i> Dashboard
+    <a href="{{ url_for('dashboard') }}" class="nav-link mb-1 {% if request.endpoint == 'dashboard' %}active{% endif %}">
+      <i class="bi bi-bullseye"></i> Today
     </a>
-    <a href="{{ url_for('calendar_index') }}"
-       class="nav-link mb-1 {% if request.endpoint in ['calendar_index','block_detail'] %}active{% endif %}">
-      <i class="bi bi-calendar3"></i> Calendar
+    <a href="{{ url_for('plan_index') }}" class="nav-link mb-1 {% if plan_active %}active{% endif %}">
+      <i class="bi bi-calendar3"></i> Plan
     </a>
-    <a href="{{ url_for('recurring_index') }}"
-       class="nav-link mb-1 nav-link-sub {% if 'recurring' in request.endpoint %}active{% endif %}">
-      <i class="bi bi-arrow-repeat"></i> Recurring
+    <a href="{{ url_for('path_index') }}" class="nav-link mb-1 {% if path_active %}active{% endif %}">
+      <i class="bi bi-compass"></i> Path
     </a>
-    <a href="{{ url_for('journal_index') }}"
-       class="nav-link mb-1 {% if 'journal' in request.endpoint or 'entry' in request.endpoint %}active{% endif %}">
-      <i class="bi bi-journal-text"></i> Journal
+    <a href="{{ url_for('mind_index') }}" class="nav-link mb-1 {% if mind_active %}active{% endif %}">
+      <i class="bi bi-shield-check"></i> Mind
     </a>
-    <a href="{{ url_for('health_index') }}"
-       class="nav-link mb-1 {% if 'health' in request.endpoint %}active{% endif %}">
-      <i class="bi bi-heart-pulse"></i> Health
-    </a>
-    <a href="{{ url_for('finance_index') }}"
-       class="nav-link mb-1 {% if 'finance' in request.endpoint %}active{% endif %}">
-      <i class="bi bi-wallet2"></i> Finance
-    </a>
-    <a href="{{ url_for('tracks_index') }}"
-       class="nav-link mb-1 {% if 'track' in request.endpoint %}active{% endif %}">
-      <i class="bi bi-map"></i> Tracks
-    </a>
-    <a href="{{ url_for('kanban_index') }}"
-       class="nav-link mb-1 {% if 'kanban' in request.endpoint %}active{% endif %}">
-      <i class="bi bi-kanban"></i> Kanban
-    </a>
-    <a href="{{ url_for('progress_index') }}"
-       class="nav-link mb-1 {% if 'progress' in request.endpoint %}active{% endif %}">
-      <i class="bi bi-trophy"></i> Progress
+    <a href="{{ url_for('resources_index') }}" class="nav-link mb-1 {% if resources_active %}active{% endif %}">
+      <i class="bi bi-grid"></i> Resources
     </a>
   </div>
 </div>
 
-<!-- ── App shell ───────────────────────────────────────────────────── -->
 <div class="app-shell">
-
-  <!-- Sidebar (desktop only) -->
   <nav class="sidebar d-none d-md-flex flex-column p-2">
     <div class="brand">Focus</div>
-    <a href="{{ url_for('dashboard') }}"
-       class="nav-link mb-1 {% if request.endpoint == 'dashboard' %}active{% endif %}">
-      <i class="bi bi-house me-2"></i>Dashboard
+    <a href="{{ url_for('dashboard') }}" class="nav-link mb-1 {% if request.endpoint == 'dashboard' %}active{% endif %}">
+      <i class="bi bi-bullseye me-2"></i>Today
     </a>
-    <a href="{{ url_for('calendar_index') }}"
-       class="nav-link mb-1 {% if request.endpoint in ['calendar_index','block_detail'] %}active{% endif %}">
-      <i class="bi bi-calendar3 me-2"></i>Calendar
+    <a href="{{ url_for('plan_index') }}" class="nav-link mb-1 {% if plan_active %}active{% endif %}">
+      <i class="bi bi-calendar3 me-2"></i>Plan
     </a>
-    <a href="{{ url_for('recurring_index') }}"
-       class="nav-link mb-1 ps-4 {% if 'recurring' in request.endpoint %}active{% endif %}"
-       style="font-size:.85rem;">
-      <i class="bi bi-arrow-repeat me-2"></i>Recurring
+    <a href="{{ url_for('path_index') }}" class="nav-link mb-1 {% if path_active %}active{% endif %}">
+      <i class="bi bi-compass me-2"></i>Path
     </a>
-    <a href="{{ url_for('journal_index') }}"
-       class="nav-link mb-1 {% if 'journal' in request.endpoint or 'entry' in request.endpoint %}active{% endif %}">
-      <i class="bi bi-journal-text me-2"></i>Journal
+    <a href="{{ url_for('mind_index') }}" class="nav-link mb-1 {% if mind_active %}active{% endif %}">
+      <i class="bi bi-shield-check me-2"></i>Mind
     </a>
-    <a href="{{ url_for('health_index') }}"
-       class="nav-link mb-1 {% if 'health' in request.endpoint %}active{% endif %}">
-      <i class="bi bi-heart-pulse me-2"></i>Health
-    </a>
-    <a href="{{ url_for('finance_index') }}"
-       class="nav-link mb-1 {% if 'finance' in request.endpoint %}active{% endif %}">
-      <i class="bi bi-wallet2 me-2"></i>Finance
-    </a>
-    <a href="{{ url_for('tracks_index') }}"
-       class="nav-link mb-1 {% if 'track' in request.endpoint %}active{% endif %}">
-      <i class="bi bi-map me-2"></i>Tracks
-    </a>
-    <a href="{{ url_for('kanban_index') }}"
-       class="nav-link mb-1 {% if 'kanban' in request.endpoint %}active{% endif %}">
-      <i class="bi bi-kanban me-2"></i>Kanban
-    </a>
-    <a href="{{ url_for('progress_index') }}"
-       class="nav-link mb-1 {% if 'progress' in request.endpoint %}active{% endif %}">
-      <i class="bi bi-trophy me-2"></i>Progress
+    <a href="{{ url_for('resources_index') }}" class="nav-link mb-1 {% if resources_active %}active{% endif %}">
+      <i class="bi bi-grid me-2"></i>Resources
     </a>
   </nav>
 
-  <!-- Main content -->
   <div id="main-content"
        class="{% block main_class %}main-scroll{% endblock %}"
        style="{% block main_style %}{% endblock %}">
@@ -129,8 +104,25 @@
     {% endwith %}
     {% block content %}{% endblock %}
   </div>
+</div>
 
-</div><!-- /.app-shell -->
+<nav class="mobile-tabbar" aria-label="Phone navigation">
+  <a href="{{ url_for('dashboard') }}" class="nav-link {% if request.endpoint == 'dashboard' %}active{% endif %}">
+    <i class="bi bi-bullseye"></i><span>Today</span>
+  </a>
+  <a href="{{ url_for('plan_index') }}" class="nav-link {% if plan_active %}active{% endif %}">
+    <i class="bi bi-calendar3"></i><span>Plan</span>
+  </a>
+  <a href="{{ url_for('path_index') }}" class="nav-link {% if path_active %}active{% endif %}">
+    <i class="bi bi-compass"></i><span>Path</span>
+  </a>
+  <a href="{{ url_for('mind_index') }}" class="nav-link {% if mind_active %}active{% endif %}">
+    <i class="bi bi-shield-check"></i><span>Mind</span>
+  </a>
+  <a href="{{ url_for('resources_index') }}" class="nav-link {% if resources_active %}active{% endif %}">
+    <i class="bi bi-grid"></i><span>More</span>
+  </a>
+</nav>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>

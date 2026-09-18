@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %} - Resources{% endblock %}
+{% block content %}
+<div class="focus-page-title">
+  <div>
+    <div class="focus-kicker">Support systems</div>
+    <h2 class="focus-display mb-0">Resources</h2>
+  </div>
+</div>
+
+<div class="stats-grid mb-4">
+  <div class="card stat-card p-3">
+    <div class="text-muted small">Gym Streak</div>
+    <div class="fs-1 fw-bold text-success">{{ streak }}</div>
+    <div class="small text-muted">days</div>
+  </div>
+  <div class="card stat-card p-3">
+    <div class="text-muted small">Net Worth</div>
+    <div class="fs-3 fw-bold {% if net_worth >= 0 %}text-primary{% else %}text-danger{% endif %}">
+      {% if net_worth < 0 %}-{% endif %}${{ "%.0f"|format(net_worth|abs) }}
+    </div>
+    <div class="small text-muted">tracked locally</div>
+  </div>
+  <div class="card stat-card p-3">
+    <div class="text-muted small">Health Records</div>
+    <div class="fs-1 fw-bold text-info">{{ health_count }}</div>
+    <div class="small text-muted">entries</div>
+  </div>
+  <div class="card stat-card p-3">
+    <div class="text-muted small">Journal Entries</div>
+    <div class="fs-1 fw-bold text-warning">{{ journal_count }}</div>
+    <div class="small text-muted">private logs</div>
+  </div>
+</div>
+
+<div class="row g-3">
+  <div class="col-12 col-xl-4">
+    <a href="{{ url_for('health_index') }}" class="hub-card card p-3 text-decoration-none h-100">
+      <i class="bi bi-heart-pulse"></i>
+      <h5>Health</h5>
+      <p>Body records, gym streak, sleep, vitals, and appointments.</p>
+    </a>
+  </div>
+  <div class="col-12 col-xl-4">
+    <a href="{{ url_for('finance_index') }}" class="hub-card card p-3 text-decoration-none h-100">
+      <i class="bi bi-wallet2"></i>
+      <h5>Finance</h5>
+      <p>Assets, debt, bills, transactions, and spending pressure.</p>
+    </a>
+  </div>
+  <div class="col-12 col-xl-4">
+    <a href="{{ url_for('journal_index') }}" class="hub-card card p-3 text-decoration-none h-100">
+      <i class="bi bi-journal-text"></i>
+      <h5>Journal Archive</h5>
+      <p>Search older reflections and stress records.</p>
+    </a>
+  </div>
+</div>
+{% endblock %}

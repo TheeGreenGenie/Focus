@@ -1,29 +1,54 @@
 {% extends "base.html" %}
-{% block title %} — Progress{% endblock %}
+{% block title %} - Progress{% endblock %}
 {% block content %}
-<h2 class="mb-4">User Progress</h2>
+<div class="focus-page-title">
+  <div>
+    <div class="focus-kicker">Visible proof</div>
+    <h2 class="focus-display mb-0">Progress</h2>
+  </div>
+  <a href="{{ url_for('mastery_index') }}" class="btn btn-sm btn-outline-primary">
+    <i class="bi bi-compass me-1"></i>Mastery
+  </a>
+</div>
 
-<!-- Stats -->
 <div class="stats-grid mb-4">
-  <div class="card p-3 text-center">
+  <div class="card stat-card p-3 text-center">
     <div class="fs-1 fw-bold text-success">{{ total_completed }}</div>
     <div class="text-muted small">Tracks Completed</div>
   </div>
-  <div class="card p-3 text-center">
+  <div class="card stat-card p-3 text-center">
     <div class="fs-1 fw-bold text-primary">{{ total_goals_done }}</div>
     <div class="text-muted small">Goals Done</div>
   </div>
-  <div class="card p-3 text-center">
+  <div class="card stat-card p-3 text-center">
     <div class="fs-1 fw-bold text-info">{{ total_entries }}</div>
     <div class="text-muted small">Journal Entries</div>
   </div>
-  <div class="card p-3 text-center">
+  <div class="card stat-card p-3 text-center">
     <div class="fs-1 fw-bold text-warning">{{ streak }}</div>
     <div class="text-muted small">Gym Streak</div>
   </div>
 </div>
 
-<!-- Track history -->
+<div class="stats-grid mb-4">
+  <div class="card stat-card p-3 text-center">
+    <div class="fs-1 fw-bold text-primary">{{ total_practice }}</div>
+    <div class="text-muted small">Practice Sessions</div>
+  </div>
+  <div class="card stat-card p-3 text-center">
+    <div class="fs-1 fw-bold text-secondary">{{ total_mentors }}</div>
+    <div class="text-muted small">Mentors / Models</div>
+  </div>
+  <div class="card stat-card p-3 text-center">
+    <div class="fs-1 fw-bold text-dark">{{ total_triggers }}</div>
+    <div class="text-muted small">Triggers Logged</div>
+  </div>
+  <div class="card stat-card p-3 text-center">
+    <div class="fs-1 fw-bold text-info">{{ all_tracks|selectattr('life_task_link')|list|length }}</div>
+    <div class="text-muted small">Life-Linked Tracks</div>
+  </div>
+</div>
+
 <div class="card p-3 mb-3">
   <h5 class="mb-4">Track History</h5>
   {% if all_tracks %}
@@ -39,6 +64,7 @@
                 <a href="{{ url_for('track_detail', id=track.id) }}"
                   class="fw-semibold text-decoration-none text-dark">{{ track.title }}</a>
                 <span class="badge bg-light text-dark border">Level {{ track.level }}</span>
+                <span class="badge bg-primary bg-opacity-10 text-primary border">{{ track.mastery_phase.replace('_', ' ').title() }}</span>
                 {% if track.status == 'completed' %}
                   <span class="badge bg-success">Done</span>
                 {% endif %}
@@ -48,8 +74,10 @@
               </div>
               <div class="text-muted small mt-1">
                 {{ track.checkpoints | selectattr('completed') | list | length }}/{{ track.checkpoints|length }} checkpoints
+                - {{ track.practice_sessions|length }} practice
+                - {{ track.skill_nodes|length }} skills
                 {% if track.completed_at %}
-                  · Completed {{ track.completed_at.strftime('%B %d, %Y') }}
+                  - Completed {{ track.completed_at.strftime('%B %d, %Y') }}
                 {% endif %}
               </div>
             </div>
@@ -66,7 +94,6 @@
   {% endif %}
 </div>
 
-<!-- Completed Goals -->
 <div class="card p-3">
   <h5 class="mb-3">
     Completed Goals

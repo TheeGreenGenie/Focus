@@ -1,6 +1,8 @@
 # Focus — Testing Ground
 ## Flask Edition (1–3 Day Build)
 
+> Planning update, 2026-09-17: This file was revised to align with `../FocusWebApp/researchBacklog.md` and the Greene-first/Mastery architecture. This is a planning/spec change only; Flask implementation files and the SQLite database were not changed in this pass.
+
 ---
 
 ## 1. Overview
@@ -52,9 +54,19 @@ CalendarBlock   # id, title, starts_at, ends_at, allowed_apps (comma string), ad
 UsageLog        # id, calendar_block_id, app_or_url, active_at, duration_seconds
 JournalEntry    # id, body, stress_level, created_at, updated_at
 HealthRecord    # id, record_type, source, value (json string), recorded_at
-Track           # id, title, status, level, metadata (json string), completed_at, created_at
+Track           # id, title, status, level, mastery_phase, life_task_link, metadata (json string), completed_at, created_at
 Goal            # id, track_id (nullable), title, status, due_at, created_at
 Transaction     # id, merchant_name, amount, category, transacted_at, notes
+LifeTaskProfile # id, primal_inclinations, admired_models, false_paths, current_hypothesis, confidence, last_reviewed_at
+SkillNode       # id, track_id, parent_id, title, node_type, target_reps, completed_reps, feedback_source
+PracticeSession # id, track_id, skill_node_id, mode, notes, difficulty, feedback, recorded_at
+Mentor          # id, track_id, name, mentor_type, strengths_to_absorb, risks_or_limits
+MentorInteraction # id, mentor_id, question, feedback, action_taken, follow_up_at
+EmotionalTrigger  # id, trigger_context, emotion, body_state, bias_markers, chosen_response, outcome, created_at
+ShadowEntry        # id, body, theme, integration_plan, created_at
+PurposeReview      # id, track_id, period_start, period_end, status, evidence_json, next_adjustment
+Stakeholder        # id, track_id, name, role, wants, fears, trust_level, communication_cadence
+TrustEvent         # id, stakeholder_id, promise, status, evidence, occurred_at
 ```
 
 All IDs are UUIDs (`uuid.uuid4()`) to stay compatible with the production schema.
@@ -94,11 +106,23 @@ All IDs are UUIDs (`uuid.uuid4()`) to stay compatible with the production schema
 - Savings note: free-text field to log savings goals and progress manually
 
 ### 5.5 Tracks & Goals
-- Create a track manually: title, level (default 1), status (library/current/completed)
-- Add checkpoints to a track: title, description, target date
+- Create a track manually: title, level (default 1), status (library/current/completed), mastery phase, and Life's Task link
+- Add checkpoints to a track: title, description, target date, checkpoint type
+- Life's Task Profile screen: primal inclinations, admired models, false paths, current hypothesis, confidence
+- Mastery phases: calling, apprenticeship, mentor dynamic, social intelligence, creative-active, mastery
+- Skill tree: fundamentals, drills, proof artifacts, creative variations, target reps, completed reps
+- Practice sessions: observation, deliberate practice, resistance practice, experiment, failure review
+- Mentor map: direct mentors, distant models, peers, teachers, books, anti-models
 - WIP limit enforced: max 3 tracks in "current" status (form disabled if limit hit, shows message)
 - Create goals: title, optional track association, status, due date
 - Level Two: when a track is marked complete, a "Start Level 2" button appears — creates a new track with same title + " — Level 2"
+
+### 5.5.1 Self-Command & Social Reality
+- Emotional Trigger Ledger: record trigger context, emotion, body state, bias markers, chosen response, and outcome
+- Shadow Journal: private manual entries for envy, resentment, shame, aggression, grandiosity, avoidance, recognition hunger, and fear
+- Purpose Compass: connect active tracks to Life's Task, current season, false-purpose flags, and descending goal ladder
+- Stakeholder Map: list people connected to a track, what they want/fear, trust level, and communication cadence
+- Trust Ledger: promises made, kept, missed, and repaired
 
 ### 5.6 Kanban Board
 - Three columns: Doing Next / Doing / Done
@@ -211,6 +235,14 @@ GET  /progress                  → full history + stats
 - [ ] Level Two logic on track completion
 - [ ] Dashboard wired up with real data (streak, today's blocks, last journal entry)
 - [ ] Basic styling pass — consistent Bootstrap layout across all pages
+
+### Greene/Mastery Validation Pass
+- [ ] Add manual Life's Task Profile forms
+- [ ] Add mastery phase field and checkpoint type field to Tracks
+- [ ] Add Skill Tree and Practice Session flows
+- [ ] Add Mentor Map and Mentor Interaction flows
+- [ ] Add Emotional Trigger Ledger, Shadow Journal, Purpose Compass, Stakeholder Map, and Trust Ledger
+- [ ] Add dashboard cards for current mastery phase, next deliberate practice, current trigger pattern, and purpose drift
 
 ---
 

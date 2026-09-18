@@ -1,19 +1,35 @@
 {% extends "base.html" %}
-{% block title %} — Tracks{% endblock %}
+{% block title %} - Tracks{% endblock %}
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
-  <h2 class="mb-0">Tracks &amp; Goals</h2>
+<div class="focus-page-title">
+  <div>
+    <div class="focus-kicker">Current campaigns</div>
+    <h2 class="focus-display mb-0">Tracks &amp; Goals</h2>
+  </div>
   <span class="badge bg-primary fs-6">{{ current_count }}/3 Current</span>
 </div>
 
 <div class="row g-3">
-  <!-- Create track + goal -->
   <div class="col-12 col-md-4">
     <div class="card p-3 mb-3">
       <h6 class="mb-3">New Track</h6>
       <form method="post" action="{{ url_for('create_track') }}">
         <div class="mb-2">
           <input type="text" name="title" class="form-control form-control-sm" placeholder="Track title" required>
+        </div>
+        <div class="mb-2">
+          <select name="mastery_phase" class="form-select form-select-sm">
+            <option value="calling">Life's Task</option>
+            <option value="apprenticeship">Apprenticeship</option>
+            <option value="mentor_dynamic">Mentor Dynamic</option>
+            <option value="social_intelligence">Social Intelligence</option>
+            <option value="creative_active">Creative-Active</option>
+            <option value="mastery">Mastery</option>
+          </select>
+        </div>
+        <div class="mb-2">
+          <textarea name="life_task_link" class="form-control form-control-sm" rows="2"
+            placeholder="How this connects to your Life's Task"></textarea>
         </div>
         <button class="btn btn-primary btn-sm w-100">Create Track</button>
       </form>
@@ -41,9 +57,7 @@
     </div>
   </div>
 
-  <!-- Track lists -->
   <div class="col-12 col-md-8">
-    <!-- Current -->
     <div class="card p-3 mb-3 border-primary">
       <h6 class="mb-3 text-primary">Current ({{ current_count }}/3)</h6>
       {% if current %}
@@ -54,6 +68,7 @@
                 {{ track.title }}
               </a>
               <span class="text-muted small ms-2">Level {{ track.level }}</span>
+              <span class="badge bg-light text-dark border ms-1">{{ track.mastery_phase.replace('_', ' ').title() }}</span>
               <div class="progress mt-1" style="height:5px;">
                 <div class="progress-bar" style="width:{{ track.completion_pct }}%"></div>
               </div>
@@ -66,7 +81,6 @@
       {% endif %}
     </div>
 
-    <!-- Library -->
     <div class="card p-3 mb-3">
       <h6 class="mb-3">Library</h6>
       {% if library %}
@@ -75,6 +89,7 @@
             <a href="{{ url_for('track_detail', id=track.id) }}"
               class="flex-grow-1 fw-semibold text-decoration-none text-dark" style="min-width:0;">
               {{ track.title }} <span class="text-muted small">Level {{ track.level }}</span>
+              <span class="badge bg-light text-dark border ms-1">{{ track.mastery_phase.replace('_', ' ').title() }}</span>
             </a>
             {% if current_count < 3 %}
               <form method="post" action="{{ url_for('change_track_status', id=track.id) }}" class="ms-2 flex-shrink-0">
@@ -91,7 +106,6 @@
       {% endif %}
     </div>
 
-    <!-- Completed -->
     <div class="card p-3">
       <h6 class="mb-3">Completed</h6>
       {% if completed %}

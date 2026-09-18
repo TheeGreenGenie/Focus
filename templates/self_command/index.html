@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% block title %} - Self Command{% endblock %}
+{% block content %}
+<div class="focus-page-title">
+  <div>
+    <div class="focus-kicker">Emotional command center</div>
+    <h2 class="focus-display mb-0">Self Command</h2>
+  </div>
+  <a href="{{ url_for('mastery_index') }}" class="btn btn-sm btn-outline-primary">
+    <i class="bi bi-compass me-1"></i>Mastery
+  </a>
+</div>
+
+<div class="row g-3">
+  <div class="col-12 col-lg-5">
+    <div class="card p-3 mb-3">
+      <h5 class="mb-3">Emotional Trigger Ledger</h5>
+      <form method="post" action="{{ url_for('create_emotional_trigger') }}">
+        <input name="emotion" class="form-control form-control-sm mb-2" placeholder="Emotion (anger, fear, envy, shame...)">
+        <textarea name="trigger_context" class="form-control form-control-sm mb-2" rows="2" placeholder="What triggered it?"></textarea>
+        <textarea name="body_state" class="form-control form-control-sm mb-2" rows="2" placeholder="Body state / sensations"></textarea>
+        <textarea name="bias_markers" class="form-control form-control-sm mb-2" rows="2" placeholder="Bias markers: confirmation, blame, group, appearance..."></textarea>
+        <textarea name="chosen_response" class="form-control form-control-sm mb-2" rows="2" placeholder="Chosen response after cooling down"></textarea>
+        <textarea name="outcome" class="form-control form-control-sm mb-3" rows="2" placeholder="Outcome / lesson"></textarea>
+        <button class="btn btn-primary btn-sm w-100">Log Trigger</button>
+      </form>
+    </div>
+
+    <div class="card p-3">
+      <h5 class="mb-3">Shadow Journal</h5>
+      <form method="post" action="{{ url_for('create_shadow_entry') }}">
+        <select name="theme" class="form-select form-select-sm mb-2">
+          {% for value, label in shadow_themes %}
+            <option value="{{ value }}">{{ label }}</option>
+          {% endfor %}
+        </select>
+        <textarea name="body" class="form-control form-control-sm mb-2" rows="4" placeholder="What am I repressing, projecting, or avoiding?" required></textarea>
+        <textarea name="integration_plan" class="form-control form-control-sm mb-3" rows="3" placeholder="Constructive outlet or integration plan"></textarea>
+        <button class="btn btn-outline-dark btn-sm w-100">Save Shadow Entry</button>
+      </form>
+    </div>
+  </div>
+
+  <div class="col-12 col-lg-7">
+    <div class="card p-3 mb-3">
+      <h5 class="mb-3">Recent Triggers</h5>
+      {% if triggers %}
+        {% for trigger in triggers %}
+          <div class="p-2 mb-2 rounded bg-light">
+            <div class="d-flex justify-content-between gap-2">
+              <span class="fw-semibold">{{ trigger.emotion or 'Unlabeled emotion' }}</span>
+              <span class="text-muted small">{{ trigger.created_at.strftime('%b %d, %H:%M') }}</span>
+            </div>
+            <div class="small">{{ trigger.trigger_context }}</div>
+            {% if trigger.chosen_response %}
+              <div class="text-muted small mt-1">Response: {{ trigger.chosen_response }}</div>
+            {% endif %}
+          </div>
+        {% endfor %}
+      {% else %}
+        <p class="text-muted small mb-0">No triggers logged yet.</p>
+      {% endif %}
+    </div>
+
+    <div class="card p-3 mb-3">
+      <h5 class="mb-3">Shadow Entries</h5>
+      {% if shadow_entries %}
+        {% for entry in shadow_entries %}
+          <div class="p-2 mb-2 rounded bg-light">
+            <div class="d-flex justify-content-between gap-2">
+              <span class="badge bg-dark">{{ entry.theme.replace('_', ' ').title() }}</span>
+              <span class="text-muted small">{{ entry.created_at.strftime('%b %d, %H:%M') }}</span>
+            </div>
+            <div class="small mt-1">{{ entry.body[:220] }}{% if entry.body|length > 220 %}...{% endif %}</div>
+            {% if entry.integration_plan %}
+              <div class="text-muted small mt-1">Integration: {{ entry.integration_plan }}</div>
+            {% endif %}
+          </div>
+        {% endfor %}
+      {% else %}
+        <p class="text-muted small mb-0">No shadow entries yet.</p>
+      {% endif %}
+    </div>
+
+    <div class="card p-3">
+      <h5 class="mb-3">Stakeholders &amp; Trust</h5>
+      {% if stakeholders %}
+        {% for s in stakeholders %}
+          <div class="p-2 mb-2 rounded bg-light">
+            <div class="d-flex justify-content-between gap-2">
+              <span class="fw-semibold">{{ s.name }}</span>
+              <span class="badge bg-primary">Trust {{ s.trust_level }}/10</span>
+            </div>
+            <div class="text-muted small">{{ s.role }}{% if s.track %} - {{ s.track.title }}{% endif %}</div>
+            {% if s.wants %}<div class="small">Wants: {{ s.wants }}</div>{% endif %}
+            {% if s.fears %}<div class="small">Fears: {{ s.fears }}</div>{% endif %}
+          </div>
+        {% endfor %}
+      {% else %}
+        <p class="text-muted small mb-0">No stakeholders mapped yet. Add them from a track page.</p>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

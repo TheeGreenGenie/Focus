@@ -10,6 +10,7 @@
         {{ track.status.title() }}
       </span>
       <span class="badge bg-light text-dark">Level {{ track.level }}</span>
+      <span class="badge bg-primary bg-opacity-10 text-primary border">{{ track.mastery_phase.replace('_', ' ').title() }}</span>
     </div>
     <span class="fs-4 fw-bold text-primary">{{ track.completion_pct }}%</span>
   </div>
@@ -53,6 +54,26 @@
       {% endif %}
     </div>
 
+    <div class="card p-3 mb-3">
+      <h6 class="mb-3">Mastery Context</h6>
+      <form method="post" action="{{ url_for('update_track_mastery', id=track.id) }}">
+        <div class="mb-2">
+          <label class="form-label small text-muted">Phase</label>
+          <select name="mastery_phase" class="form-select form-select-sm">
+            {% for value, label in mastery_phases %}
+              <option value="{{ value }}" {% if track.mastery_phase == value %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="mb-3">
+          <label class="form-label small text-muted">Life's Task link</label>
+          <textarea name="life_task_link" class="form-control form-control-sm" rows="3"
+            placeholder="Why this track matters to the larger arc">{{ track.life_task_link or '' }}</textarea>
+        </div>
+        <button class="btn btn-outline-primary btn-sm w-100">Update Mastery Context</button>
+      </form>
+    </div>
+
     <!-- Add checkpoint -->
     <div class="card p-3 mb-3">
       <h6 class="mb-3">Add Checkpoint</h6>
@@ -63,6 +84,13 @@
         <div class="mb-2">
           <textarea name="description" class="form-control form-control-sm" rows="2"
             placeholder="Description (optional)"></textarea>
+        </div>
+        <div class="mb-2">
+          <select name="checkpoint_type" class="form-select form-select-sm">
+            {% for value, label in checkpoint_types %}
+              <option value="{{ value }}">{{ label }}</option>
+            {% endfor %}
+          </select>
         </div>
         <div class="mb-3">
           <label class="form-label small text-muted">Target date</label>
@@ -95,6 +123,192 @@
   <!-- Checkpoints + Goals -->
   <div class="col-md-8">
     <div class="card p-3 mb-3">
+      <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+        <h6 class="mb-0">Mastery Engine</h6>
+        <span class="badge bg-primary bg-opacity-10 text-primary">{{ track.mastery_phase.replace('_', ' ').title() }}</span>
+      </div>
+
+      {% if track.life_task_link %}
+        <div class="alert alert-primary py-2 small">
+          <strong>Life's Task link:</strong> {{ track.life_task_link }}
+        </div>
+      {% endif %}
+
+      <div class="row g-3">
+        <div class="col-12 col-lg-6">
+          <h6 class="small text-muted mb-2">Skill Tree</h6>
+          <form method="post" action="{{ url_for('create_skill_node', id=track.id) }}" class="mb-3">
+            <input name="title" class="form-control form-control-sm mb-2" placeholder="Skill, drill, or proof artifact" required>
+            <div class="row g-2 mb-2">
+              <div class="col">
+                <select name="node_type" class="form-select form-select-sm">
+                  <option value="fundamental">Fundamental</option>
+                  <option value="drill">Drill</option>
+                  <option value="proof_artifact">Proof artifact</option>
+                  <option value="creative_variation">Creative variation</option>
+                  <option value="social_skill">Social skill</option>
+                </select>
+              </div>
+              <div class="col">
+                <input type="number" name="target_reps" class="form-control form-control-sm" min="1" value="10" placeholder="Target reps">
+              </div>
+            </div>
+            <input name="feedback_source" class="form-control form-control-sm mb-2" placeholder="Feedback source">
+            <button class="btn btn-sm btn-outline-primary w-100">Add Skill Node</button>
+          </form>
+
+          {% if track.skill_nodes %}
+            {% for node in track.skill_nodes %}
+              <div class="p-2 mb-2 rounded bg-light">
+                <div class="d-flex justify-content-between gap-2">
+                  <span class="fw-semibold small">{{ node.title }}</span>
+                  <span class="text-muted small">{{ node.completed_reps }}/{{ node.target_reps }}</span>
+                </div>
+                <div class="progress mt-1" style="height:5px;">
+                  <div class="progress-bar" style="width:{{ node.completion_pct }}%"></div>
+                </div>
+                <div class="text-muted small mt-1">{{ node.node_type.replace('_', ' ').title() }}{% if node.feedback_source %} - {{ node.feedback_source }}{% endif %}</div>
+              </div>
+            {% endfor %}
+          {% else %}
+            <p class="text-muted small">No skill nodes yet.</p>
+          {% endif %}
+        </div>
+
+        <div class="col-12 col-lg-6">
+          <h6 class="small text-muted mb-2">Practice Session</h6>
+          <form method="post" action="{{ url_for('create_practice_session', id=track.id) }}" class="mb-3">
+            <select name="mode" class="form-select form-select-sm mb-2">
+              {% for value, label in practice_modes %}
+                <option value="{{ value }}">{{ label }}</option>
+              {% endfor %}
+            </select>
+            <select name="skill_node_id" class="form-select form-select-sm mb-2">
+              <option value="">No specific skill</option>
+              {% for node in track.skill_nodes %}
+                <option value="{{ node.id }}">{{ node.title }}</option>
+              {% endfor %}
+            </select>
+            <textarea name="notes" class="form-control form-control-sm mb-2" rows="2" placeholder="What did you observe, practice, resist, or test?"></textarea>
+            <div class="row g-2 mb-2">
+              <div class="col">
+                <input type="number" name="difficulty" min="1" max="10" value="5" class="form-control form-control-sm" placeholder="Difficulty">
+              </div>
+              <div class="col">
+                <input type="datetime-local" name="recorded_at" class="form-control form-control-sm">
+              </div>
+            </div>
+            <textarea name="feedback" class="form-control form-control-sm mb-2" rows="2" placeholder="Feedback or lesson"></textarea>
+            <button class="btn btn-sm btn-outline-success w-100">Log Practice</button>
+          </form>
+
+          {% if track.practice_sessions %}
+            {% for p in track.practice_sessions|sort(attribute='recorded_at', reverse=True) %}
+              <div class="p-2 mb-2 rounded bg-light">
+                <div class="fw-semibold small">{{ p.mode.replace('_', ' ').title() }} <span class="text-muted">({{ p.difficulty }}/10)</span></div>
+                {% if p.skill_node %}<div class="text-muted small">{{ p.skill_node.title }}</div>{% endif %}
+                {% if p.notes %}<div class="small">{{ p.notes }}</div>{% endif %}
+              </div>
+            {% endfor %}
+          {% else %}
+            <p class="text-muted small">No practice sessions logged.</p>
+          {% endif %}
+        </div>
+      </div>
+
+      <hr>
+
+      <div class="row g-3">
+        <div class="col-12 col-lg-6">
+          <h6 class="small text-muted mb-2">Mentors &amp; Models</h6>
+          <form method="post" action="{{ url_for('create_mentor', id=track.id) }}" class="mb-3">
+            <input name="name" class="form-control form-control-sm mb-2" placeholder="Mentor/model name" required>
+            <select name="mentor_type" class="form-select form-select-sm mb-2">
+              {% for value, label in mentor_types %}
+                <option value="{{ value }}">{{ label }}</option>
+              {% endfor %}
+            </select>
+            <textarea name="strengths_to_absorb" class="form-control form-control-sm mb-2" rows="2" placeholder="Strengths to absorb"></textarea>
+            <textarea name="risks_or_limits" class="form-control form-control-sm mb-2" rows="2" placeholder="Risks, limits, or what not to copy"></textarea>
+            <button class="btn btn-sm btn-outline-primary w-100">Add Mentor/Model</button>
+          </form>
+          {% for mentor in track.mentors %}
+            <div class="p-2 mb-2 rounded bg-light">
+              <div class="fw-semibold small">{{ mentor.name }} <span class="text-muted">({{ mentor.mentor_type.replace('_', ' ') }})</span></div>
+              {% if mentor.strengths_to_absorb %}<div class="small">{{ mentor.strengths_to_absorb }}</div>{% endif %}
+              <form method="post" action="{{ url_for('create_mentor_interaction', id=mentor.id) }}" class="mt-2">
+                <textarea name="question" class="form-control form-control-sm mb-1" rows="1" placeholder="Question or feedback request"></textarea>
+                <textarea name="feedback" class="form-control form-control-sm mb-1" rows="1" placeholder="Feedback received"></textarea>
+                <input name="action_taken" class="form-control form-control-sm mb-1" placeholder="Action taken">
+                <button class="btn btn-sm btn-outline-secondary py-0">Log interaction</button>
+              </form>
+            </div>
+          {% endfor %}
+        </div>
+
+        <div class="col-12 col-lg-6">
+          <h6 class="small text-muted mb-2">Purpose Review</h6>
+          <form method="post" action="{{ url_for('create_purpose_review', id=track.id) }}" class="mb-3">
+            <div class="row g-2 mb-2">
+              <div class="col"><input type="date" name="period_start" class="form-control form-control-sm" value="{{ today.isoformat() }}"></div>
+              <div class="col"><input type="date" name="period_end" class="form-control form-control-sm" value="{{ today.isoformat() }}"></div>
+            </div>
+            <select name="status" class="form-select form-select-sm mb-2">
+              {% for value, label in purpose_statuses %}
+                <option value="{{ value }}">{{ label }}</option>
+              {% endfor %}
+            </select>
+            <textarea name="evidence" class="form-control form-control-sm mb-2" rows="2" placeholder="Evidence: advancing, drifting, performing, hiding?"></textarea>
+            <textarea name="next_adjustment" class="form-control form-control-sm mb-2" rows="2" placeholder="Next adjustment"></textarea>
+            <button class="btn btn-sm btn-outline-dark w-100">Save Review</button>
+          </form>
+          {% for review in track.purpose_reviews|sort(attribute='created_at', reverse=True) %}
+            <div class="p-2 mb-2 rounded bg-light">
+              <span class="badge bg-secondary">{{ review.status.replace('_', ' ').title() }}</span>
+              <span class="text-muted small">{{ review.period_start.strftime('%b %d') }} - {{ review.period_end.strftime('%b %d') }}</span>
+              {% if review.next_adjustment %}<div class="small mt-1">{{ review.next_adjustment }}</div>{% endif %}
+            </div>
+          {% endfor %}
+        </div>
+      </div>
+
+      <hr>
+
+      <h6 class="small text-muted mb-2">Stakeholders &amp; Trust Ledger</h6>
+      <form method="post" action="{{ url_for('create_stakeholder', id=track.id) }}" class="row g-2 mb-3">
+        <div class="col-12 col-md-4"><input name="name" class="form-control form-control-sm" placeholder="Name" required></div>
+        <div class="col-12 col-md-3"><input name="role" class="form-control form-control-sm" placeholder="Role"></div>
+        <div class="col-6 col-md-2"><input type="number" name="trust_level" min="1" max="10" value="5" class="form-control form-control-sm"></div>
+        <div class="col-6 col-md-3"><input name="communication_cadence" class="form-control form-control-sm" placeholder="Cadence"></div>
+        <div class="col-12 col-md-6"><textarea name="wants" class="form-control form-control-sm" rows="2" placeholder="What they want"></textarea></div>
+        <div class="col-12 col-md-6"><textarea name="fears" class="form-control form-control-sm" rows="2" placeholder="What they fear"></textarea></div>
+        <div class="col-12"><button class="btn btn-sm btn-outline-primary w-100">Add Stakeholder</button></div>
+      </form>
+
+      {% for stakeholder in track.stakeholders %}
+        <div class="p-2 mb-2 rounded bg-light">
+          <div class="d-flex justify-content-between flex-wrap gap-2">
+            <span class="fw-semibold">{{ stakeholder.name }} <span class="text-muted small">{{ stakeholder.role }}</span></span>
+            <span class="badge bg-primary">Trust {{ stakeholder.trust_level }}/10</span>
+          </div>
+          <form method="post" action="{{ url_for('create_trust_event', id=stakeholder.id) }}" class="row g-2 mt-2">
+            <div class="col-12 col-md-5"><input name="promise" class="form-control form-control-sm" placeholder="Promise / trust event"></div>
+            <div class="col-6 col-md-2">
+              <select name="status" class="form-select form-select-sm">
+                <option value="made">Made</option>
+                <option value="kept">Kept</option>
+                <option value="missed">Missed</option>
+                <option value="repaired">Repaired</option>
+              </select>
+            </div>
+            <div class="col-6 col-md-3"><input name="evidence" class="form-control form-control-sm" placeholder="Evidence"></div>
+            <div class="col-12 col-md-2"><button class="btn btn-sm btn-outline-secondary w-100">Log</button></div>
+          </form>
+        </div>
+      {% endfor %}
+    </div>
+
+    <div class="card p-3 mb-3">
       <h6 class="mb-3">Checkpoints ({{ track.checkpoints|selectattr('completed')|list|length }}/{{ track.checkpoints|length }})</h6>
       {% if track.checkpoints %}
         {% for cp in track.checkpoints %}
@@ -108,6 +322,9 @@
             <div class="flex-grow-1">
               <span class="{% if cp.completed %}text-decoration-line-through text-muted{% else %}fw-semibold{% endif %}">
                 {{ cp.title }}
+              </span>
+              <span class="badge bg-light text-dark border ms-1" style="font-size:0.68rem;">
+                {{ cp.checkpoint_type.replace('_', ' ') if cp.checkpoint_type else 'fundamental drill' }}
               </span>
               {% if cp.is_goal %}
                 <span class="badge bg-primary bg-opacity-10 text-primary ms-1" style="font-size:0.7rem;">on kanban</span>
@@ -218,6 +435,13 @@
               </div>
               <div class="mb-2">
                 <textarea name="description" class="form-control form-control-sm" rows="2" placeholder="Description">{{ cp.description or '' }}</textarea>
+              </div>
+              <div class="mb-2">
+                <select name="checkpoint_type" class="form-select form-select-sm">
+                  {% for value, label in checkpoint_types %}
+                    <option value="{{ value }}" {% if cp.checkpoint_type == value %}selected{% endif %}>{{ label }}</option>
+                  {% endfor %}
+                </select>
               </div>
               <div class="mb-2">
                 <input type="date" name="target_date" class="form-control form-control-sm"
